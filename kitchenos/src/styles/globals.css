@@ -1,0 +1,3112 @@
+@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.kos-app-background {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-color: #fdfbf7;
+}
+
+.kos-app-kitchen-image {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.kos-app-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(253, 251, 247, 0.2);
+  z-index: 1;
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   RESET
+========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+  background: #f3e3c2;
+}
+
+
+/* =========================================================
+   LANDING PAGE
+========================================================= */
+
+.kos-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  background: #f3e3c2;
+}
+
+
+/* =========================================================
+   HERO
+========================================================= */
+
+.kos-hero {
+  position: relative;
+
+  width: 100%;
+  height: 100vh;
+  min-height: 650px;
+
+  overflow: hidden;
+
+  background: #f3e3c2;
+
+  perspective: 1200px;
+}
+
+
+/* =========================================================
+   LANDING PAGE BACKGROUND KITCHEN
+========================================================= */
+
+.kos-kitchen-image {
+  position: absolute;
+
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+  object-position: center center;
+
+  transform: scale(1.01);
+
+  z-index: 1;
+
+  will-change: transform;
+}
+
+
+/* =========================================================
+   LANDING PAGE WARM OVERLAY
+========================================================= */
+
+.kos-overlay {
+  position: absolute;
+
+  inset: 0;
+
+  z-index: 2;
+
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(246, 231, 199, 0.20) 0%,
+      rgba(246, 231, 199, 0.08) 45%,
+      rgba(246, 231, 199, 0) 100%
+    );
+}
+
+
+/* =========================================================
+   WELCOME TEXT CONTAINER
+========================================================= */
+
+.kos-welcome {
+  position: absolute;
+
+  left: 6.5%;
+  top: 50%;
+
+  width: 55%;
+
+  transform: translateY(-50%);
+
+  z-index: 50;
+
+  pointer-events: auto;
+
+  color: #5a2111;
+}
+
+
+/* =========================================================
+   ANIMATED LETTER
+========================================================= */
+
+.kos-letter {
+  display: inline-block;
+
+  opacity: 0;
+
+  transform:
+    translateY(45px)
+    scale(0.65)
+    rotateX(-35deg);
+
+  transform-origin: center bottom;
+
+  will-change:
+    transform,
+    opacity;
+
+  animation:
+    kosLetterPop
+    0.65s
+    cubic-bezier(0.2, 0.9, 0.25, 1.3)
+    forwards;
+}
+
+
+/* =========================================================
+   LETTER ANIMATION
+========================================================= */
+
+@keyframes kosLetterPop {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translateY(45px)
+      scale(0.65)
+      rotateX(-35deg);
+  }
+
+  45% {
+    opacity: 1;
+
+    transform:
+      translateY(-10px)
+      scale(1.08)
+      rotateX(5deg);
+  }
+
+  70% {
+    transform:
+      translateY(3px)
+      scale(0.97)
+      rotateX(0deg);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      translateY(0)
+      scale(1)
+      rotateX(0deg);
+  }
+}
+
+
+/* =========================================================
+   WELCOME
+========================================================= */
+
+.kos-welcome-word {
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: clamp(48px, 5vw, 82px);
+
+  font-weight: 700;
+
+  line-height: 0.95;
+
+  color: #5a2111;
+
+  text-shadow:
+    0 3px 0 rgba(255, 244, 215, 0.8),
+    0 8px 18px rgba(60, 25, 10, 0.12);
+}
+
+
+/* =========================================================
+   TO
+========================================================= */
+
+.kos-to-word {
+  margin-top: 8px;
+  margin-left: 45px;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: clamp(32px, 3.5vw, 55px);
+
+  font-style: italic;
+
+  line-height: 1;
+
+  color: #5a2111;
+
+  text-shadow:
+    0 3px 0 rgba(255, 244, 215, 0.8),
+    0 8px 18px rgba(60, 25, 10, 0.12);
+}
+
+
+/* =========================================================
+   KITCHENOS
+========================================================= */
+
+.kos-name-word {
+  margin-top: 8px;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: clamp(65px, 8vw, 135px);
+
+  font-weight: 900;
+
+  line-height: 0.82;
+
+  letter-spacing: -0.06em;
+
+  color: #8d3217;
+
+  text-shadow:
+    0 3px 0 rgba(255, 244, 215, 0.8),
+    0 8px 18px rgba(60, 25, 10, 0.15);
+}
+/* =========================================================
+   GET STARTED BUTTON
+========================================================= */
+
+.kos-get-started {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  margin-top: 30px;
+  margin-left: 45px;
+
+  padding: 14px 36px;
+
+  min-width: 155px;
+
+  border: none;
+  border-radius: 10px;
+
+  background: #7b2f18;
+  color: #fff8e8;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 18px;
+
+  font-weight: 700;
+
+  line-height: 1.2;
+
+  letter-spacing: 0.02em;
+
+  text-align: center;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  opacity: 0;
+  visibility: hidden;
+
+  transform: translateY(20px);
+
+  pointer-events: none;
+
+  box-shadow:
+    0 6px 16px
+    rgba(60, 25, 10, 0.25);
+
+  transition:
+    opacity 0.6s ease,
+    visibility 0.6s ease,
+    transform 0.6s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+
+/* =========================================================
+   SHOW BUTTON AFTER INTRO
+========================================================= */
+
+.kos-animation-done .kos-get-started {
+  opacity: 1;
+
+  visibility: visible;
+
+  transform: translateY(0);
+
+  pointer-events: auto;
+}
+
+
+/* =========================================================
+   BUTTON HOVER
+========================================================= */
+
+.kos-animation-done .kos-get-started:hover {
+  background-color: #642512;
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 9px 20px
+    rgba(60, 25, 10, 0.30);
+}
+
+
+/* =========================================================
+   BUTTON CLICK
+========================================================= */
+
+.kos-animation-done .kos-get-started:active {
+  background-color: #54200f;
+
+  transform: translateY(0);
+
+  box-shadow:
+    0 5px 12px
+    rgba(60, 25, 10, 0.25);
+}
+
+
+/* =========================================================
+   BUTTON FOCUS
+========================================================= */
+
+.kos-get-started:focus-visible {
+  outline:
+    3px solid
+    rgba(141, 50, 23, 0.35);
+
+  outline-offset: 4px;
+}
+
+
+/* =========================================================
+   ORBIT CONTAINERS
+========================================================= */
+
+.kos-orbit {
+  position: absolute;
+
+  left: 31%;
+  top: 50%;
+
+  width: 44%;
+  height: 68%;
+
+  z-index: 20;
+
+  pointer-events: none;
+
+  opacity: 0;
+
+  transform:
+    translate(-50%, -50%);
+
+  transform-origin: center center;
+
+  transform-style: preserve-3d;
+}
+
+
+/* =========================================================
+   OBJECT IMAGE
+========================================================= */
+
+.kos-object {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  display: block;
+
+  width: auto;
+  height: auto;
+
+  max-width: none;
+
+  margin: 0;
+
+  opacity: 0;
+
+  pointer-events: none;
+
+  user-select: none;
+
+  object-fit: contain;
+
+  transform:
+    translate(-50%, -50%);
+
+  transform-origin: center center;
+
+  transform-style: preserve-3d;
+
+  filter:
+    drop-shadow(
+      0 10px 9px
+      rgba(60, 25, 10, 0.18)
+    );
+
+  will-change:
+    transform,
+    opacity;
+}
+
+
+/* =========================================================
+   OBJECT SIZES
+========================================================= */
+
+.kos-orbit-1 .kos-object {
+  width: 72px;
+}
+
+.kos-orbit-2 .kos-object {
+  width: 64px;
+}
+
+.kos-orbit-3 .kos-object {
+  width: 72px;
+}
+
+.kos-orbit-4 .kos-object {
+  width: 68px;
+}
+
+.kos-orbit-5 .kos-object {
+  width: 95px;
+}
+
+.kos-orbit-6 .kos-object {
+  width: 78px;
+}
+
+
+/* =========================================================
+   OBJECTS START AFTER INTRO
+========================================================= */
+
+.kos-animation-done .kos-orbit {
+  opacity: 1;
+}
+
+
+/* =========================================================
+   ORBIT ANIMATIONS
+========================================================= */
+
+.kos-animation-done .kos-orbit-1 .kos-object {
+  animation:
+    kosEllipse1
+    14s
+    linear
+    infinite;
+}
+
+.kos-animation-done .kos-orbit-2 .kos-object {
+  animation:
+    kosEllipse2
+    17s
+    linear
+    infinite;
+}
+
+.kos-animation-done .kos-orbit-3 .kos-object {
+  animation:
+    kosEllipse3
+    12s
+    linear
+    infinite;
+}
+
+.kos-animation-done .kos-orbit-4 .kos-object {
+  animation:
+    kosEllipse4
+    16s
+    linear
+    infinite;
+}
+
+.kos-animation-done .kos-orbit-5 .kos-object {
+  animation:
+    kosEllipse5
+    19s
+    linear
+    infinite;
+}
+
+.kos-animation-done .kos-orbit-6 .kos-object {
+  animation:
+    kosEllipse6
+    18s
+    linear
+    infinite;
+}
+
+
+/* =========================================================
+   ELLIPSE 1 — LEAF
+========================================================= */
+
+@keyframes kosEllipse1 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+translateX(235px)
+      translateY(-20px)
+      rotate(-15deg)
+      scale(0.75);
+  }
+
+  8% {
+    opacity: 1;
+  }
+
+  25% {
+    transform:
+      translate(-50%, -50%)
+      translateX(150px)
+      translateY(-115px)
+      rotate(5deg)
+      scale(0.9);
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-235px)
+      translateY(0)
+      rotate(15deg)
+      scale(1.12);
+  }
+
+  75% {
+    transform:
+      translate(-50%, -50%)
+      translateX(150px)
+      translateY(115px)
+      rotate(-5deg)
+      scale(0.9);
+  }
+
+  92% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(235px)
+      translateY(-20px)
+      rotate(-15deg)
+      scale(0.75);
+  }
+}
+
+
+/* =========================================================
+   ELLIPSE 2 — TOMATO
+========================================================= */
+
+@keyframes kosEllipse2 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(145px)
+      translateY(90px)
+      rotate(0deg)
+      scale(0.78);
+  }
+
+  8% {
+    opacity: 1;
+  }
+
+  25% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-155px)
+      translateY(95px)
+      rotate(-8deg)
+      scale(0.95);
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-220px)
+      translateY(-20px)
+      rotate(10deg)
+      scale(1.12);
+  }
+
+  75% {
+    transform:
+      translate(-50%, -50%)
+      translateX(105px)
+      translateY(-115px)
+      rotate(-5deg)
+      scale(0.82);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(145px)
+      translateY(90px)
+      rotate(0deg)
+      scale(0.78);
+  }
+}
+
+
+/* =========================================================
+   ELLIPSE 3 — SPOON
+========================================================= */
+
+@keyframes kosEllipse3 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(-225px)
+      translateY(-25px)
+      rotate(-20deg)
+      scale(0.75);
+  }
+
+  8% {
+    opacity: 1;
+  }
+
+  25% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-105px)
+      translateY(-115px)
+      rotate(-5deg)
+      scale(0.88);
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(225px)
+      translateY(0)
+      rotate(15deg)
+      scale(1.12);
+  }
+
+  75% {
+    transform:
+      translate(-50%, -50%)
+      translateX(105px)
+      translateY(115px)
+      rotate(5deg)
+      scale(0.9);
+  }
+
+  100% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(-225px)
+      translateY(-25px)
+      rotate(-20deg)
+      scale(0.75);
+  }
+}
+
+
+/* =========================================================
+   ELLIPSE 4 — CARROT
+========================================================= */
+
+@keyframes kosEllipse4 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(-175px)
+      translateY(90px)
+      rotate(-15deg)
+      scale(0.8);
+  }
+
+  8% {
+    opacity: 1;
+  }
+
+  25% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-215px)
+      translateY(-15px)
+      rotate(-5deg)
+      scale(1.08);
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(70px)
+      translateY(-110px)
+      rotate(12deg)
+      scale(0.82);
+  }
+
+  75% {
+    transform:
+      translate(-50%, -50%)
+      translateX(215px)
+      translateY(35px)
+      rotate(5deg)
+      scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(-175px)
+      translateY(90px)
+      rotate(-15deg)
+      scale(0.8);
+  }
+}
+
+
+/* =========================================================
+   ELLIPSE 5 — PAN
+========================================================= */
+
+@keyframes kosEllipse5 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(195px)
+      translateY(-70px)
+      rotate(8deg)
+      scale(0.78);
+  }
+
+  8% {
+    opacity: 1;
+  }
+
+  25% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-30px)
+      translateY(-120px)
+      rotate(-6deg)
+      scale(0.9);
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-225px)
+      translateY(15px)
+      rotate(-14deg)
+      scale(1.12);
+  }
+
+  75% {
+    transform:
+      translate(-50%, -50%)
+      translateX(30px)
+      translateY(115px)
+      rotate(5deg)
+      scale(0.92);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(195px)
+      translateY(-70px)
+      rotate(8deg)
+      scale(0.78);
+  }
+}
+
+
+/* =========================================================
+   ELLIPSE 6 — BOOK
+========================================================= */
+
+@keyframes kosEllipse6 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(75px)
+      translateY(115px)
+      rotate(-5deg)
+      scale(0.82);
+  }
+
+  8% {
+    opacity: 1;
+  }
+
+  25% {
+    transform:
+      translate(-50%, -50%)
+      translateX(215px)
+      translateY(25px)
+      rotate(8deg)
+      scale(1.08);
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(80px)
+      translateY(-115px)
+      rotate(-4deg)
+      scale(0.82);
+  }
+
+  75% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-215px)
+      translateY(-5px)
+      rotate(-10deg)
+      scale(1.12);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(75px)
+      translateY(115px)
+      rotate(-5deg)
+      scale(0.82);
+  }
+}
+
+
+/* =========================================================
+   LANDING BACKGROUND CAMERA MOVEMENT
+========================================================= */
+
+.kos-animation-done .kos-kitchen-image {
+  animation:
+    kosKitchenMovement
+    14s
+    ease-in-out
+    infinite
+    alternate;
+}
+
+
+@keyframes kosKitchenMovement {
+
+  0% {
+    transform:
+      scale(1.01)
+      translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform:
+      scale(1.035)
+      translate3d(-0.35%, -0.25%, 0);
+  }
+
+  100% {
+    transform:
+      scale(1.015)
+      translate3d(0.3%, 0.2%, 0);
+  }
+}
+
+
+/* =========================================================
+   MOBILE LANDING PAGE
+========================================================= */
+
+@media (max-width: 768px) {
+
+  .kos-hero {
+    height: 100svh;
+    min-height: 600px;
+    perspective: 900px;
+  }
+
+
+  .kos-kitchen-image {
+    object-position: 62% center;
+  }
+
+
+  .kos-welcome {
+    left: 6%;
+    top: 52%;
+    width: 90%;
+  }
+
+
+  .kos-welcome-word {
+    font-size: 13vw;
+  }
+
+
+  .kos-to-word {
+    margin-top: 7px;
+    margin-left: 22px;
+    font-size: 9vw;
+  }
+
+
+  .kos-name-word {
+    margin-top: 7px;
+    font-size: 17vw;
+    letter-spacing: -0.055em;
+  }
+
+
+  .kos-get-started {
+    margin-top: 25px;
+    margin-left: 22px;
+
+    min-width: 140px;
+ padding: 12px 29px;
+
+    font-size: 16px;
+
+    border-radius: 9px;
+  }
+
+
+  .kos-orbit {
+    left: 50%;
+    top: 52%;
+
+    width: 82%;
+    height: 58%;
+  }
+
+
+  .kos-orbit-1 .kos-object {
+    width: 48px;
+  }
+
+  .kos-orbit-2 .kos-object {
+    width: 44px;
+  }
+
+  .kos-orbit-3 .kos-object {
+    width: 48px;
+  }
+
+  .kos-orbit-4 .kos-object {
+    width: 46px;
+  }
+
+  .kos-orbit-5 .kos-object {
+    width: 65px;
+  }
+
+  .kos-orbit-6 .kos-object {
+    width: 52px;
+  }
+
+
+  .kos-animation-done .kos-orbit-1 .kos-object {
+    animation-name: kosEllipseMobile1;
+  }
+
+  .kos-animation-done .kos-orbit-2 .kos-object {
+    animation-name: kosEllipseMobile2;
+  }
+
+  .kos-animation-done .kos-orbit-3 .kos-object {
+    animation-name: kosEllipseMobile3;
+  }
+
+  .kos-animation-done .kos-orbit-4 .kos-object {
+    animation-name: kosEllipseMobile4;
+  }
+
+  .kos-animation-done .kos-orbit-5 .kos-object {
+    animation-name: kosEllipseMobile5;
+  }
+
+  .kos-animation-done .kos-orbit-6 .kos-object {
+    animation-name: kosEllipseMobile6;
+  }
+
+
+  /* =======================================================
+     MAIN APP BACKGROUND — MOBILE
+  ======================================================= */
+
+  .kos-app-kitchen-image {
+    object-position: 62% center;
+  }
+}
+
+
+/* =========================================================
+   MOBILE ORBIT 1
+========================================================= */
+
+@keyframes kosEllipseMobile1 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(120px)
+      translateY(-5px)
+      rotate(-8deg)
+      scale(0.8);
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  25% {
+    transform:
+      translate(-50%, -50%)
+      translateX(75px)
+      translateY(-65px)
+      rotate(3deg)
+      scale(0.9);
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-120px)
+      translateY(0)
+      rotate(10deg)
+      scale(1.08);
+  }
+
+  75% {
+    transform:
+      translate(-50%, -50%)
+      translateX(70px)
+      translateY(65px)
+      rotate(-5deg)
+      scale(0.9);
+  }
+
+  100% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(120px)
+      translateY(-5px)
+      rotate(-8deg)
+      scale(0.8);
+  }
+}
+
+
+/* =========================================================
+   MOBILE ORBIT 2
+========================================================= */
+
+@keyframes kosEllipseMobile2 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(90px)
+      translateY(65px)
+      scale(0.82);
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-120px)
+      translateY(-5px)
+      scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(90px)
+      translateY(65px)
+      scale(0.82);
+  }
+}
+
+
+/* =========================================================
+   MOBILE ORBIT 3
+========================================================= */
+
+@keyframes kosEllipseMobile3 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(-120px)
+      translateY(-5px)
+      rotate(-15deg)
+      scale(0.78);
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(120px)
+      translateY(0)
+      rotate(15deg)
+      scale(1.1);
+  }
+
+  100% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(-120px)
+      translateY(-5px)
+      rotate(-15deg)
+      scale(0.78);
+  }
+}
+
+
+/* =========================================================
+   MOBILE ORBIT 4
+========================================================= */
+
+@keyframes kosEllipseMobile4 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(-95px)
+      translateY(55px)
+      rotate(-10deg)
+      scale(0.82);
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(105px)
+      translateY(-60px)
+      rotate(10deg)
+      scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(-95px)
+      translateY(55px)
+      rotate(-10deg)
+      scale(0.82);
+  }
+}
+
+
+/* =========================================================
+   MOBILE ORBIT 5
+========================================================= */
+
+@keyframes kosEllipseMobile5 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(110px)
+      translateY(-50px)
+      rotate(8deg)
+      scale(0.8);
+  }
+
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-105px)
+      translateY(55px)
+      rotate(-10deg)
+      scale(1.1);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(110px)
+      translateY(-50px)
+      rotate(8deg)
+      scale(0.8);
+  }
+}
+
+
+/* =========================================================
+   MOBILE ORBIT 6
+========================================================= */
+
+@keyframes kosEllipseMobile6 {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(75px)
+      translateY(60px)
+      rotate(-5deg)
+      scale(0.82);
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  50% {
+    transform:
+      translate(-50%, -50%)
+      translateX(-105px)
+      translateY(-45px)
+      rotate(8deg)
+      scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      translate(-50%, -50%)
+      translateX(75px)
+      translateY(60px)
+      rotate(-5deg)
+      scale(0.82);
+  }
+}
+
+
+/* =========================================================
+   VERY SMALL PHONES
+========================================================= */
+
+@media (max-width: 420px) {
+
+  .kos-welcome {
+    left: 5%;
+    width: 92%;
+  }
+
+
+  .kos-welcome-word {
+    font-size: 14vw;
+  }
+
+
+  .kos-to-word {
+    margin-left: 18px;
+    font-size: 10vw;
+  }
+
+
+  .kos-name-word {
+    font-size: 18vw;
+  }
+
+
+  .kos-get-started {
+    margin-top: 22px;
+    margin-left: 18px;
+
+    min-width: 130px;
+
+    padding: 11px 25px;
+
+    font-size: 15px;
+
+    border-radius: 9px;
+  }
+
+
+  .kos-orbit {
+    left: 50%;
+    top: 52%;
+
+    width: 88%;
+    height: 56%;
+  }
+
+
+  .kos-orbit-1 .kos-object {
+    width: 42px;
+  }
+
+  .kos-orbit-2 .kos-object {
+    width: 38px;
+  }
+
+  .kos-orbit-3 .kos-object {
+    width: 42px;
+  }
+
+  .kos-orbit-4 .kos-object {
+    width: 40px;
+  }
+
+  .kos-orbit-5 .kos-object {
+    width: 55px;
+  }
+
+  .kos-orbit-6 .kos-object {
+    width: 46px;
+  }
+}
+
+
+/* =========================================================
+   ACCESSIBILITY
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .kos-letter {
+    animation: none !important;
+
+    opacity: 1 !important;
+
+    transform: none !important;
+  }
+
+
+  .kos-orbit {
+    opacity: 1 !important;
+
+    transform:
+      translate(-50%, -50%) !important;
+  }
+
+
+  .kos-object {
+    opacity: 1 !important;
+
+    animation: none !important;
+
+    transform:
+      translate(-50%, -50%) !important;
+  }
+
+
+  .kos-kitchen-image {
+    animation: none !important;
+
+    transform: none !important;
+  }
+
+
+  .kos-get-started {
+    opacity: 1 !important;
+
+    visibility: visible !important;
+
+    transform: none !important;
+
+    pointer-events: auto !important;
+  }
+}
+
+
+/* =========================================================
+   KITCHENOS MAIN PAGE
+========================================================= */
+
+.kos-main-page {
+  min-height: 100vh;
+
+  background: #f3e3c2;
+
+  color: #5a2111;
+}
+
+
+/* =========================================================
+   NAVBAR
+========================================================= */
+
+.kos-navbar {
+  width: 100%;
+  min-height: 82px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 6%;
+
+  background: rgba(243, 227, 194, 0.95);
+
+  border-bottom:
+    1px solid
+    rgba(90, 33, 17, 0.12);
+
+  position: relative;
+
+  z-index: 10;
+}
+
+
+.kos-logo {
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 30px;
+
+  font-weight: 900;
+
+  color: #8d3217;
+
+  letter-spacing: -0.04em;
+}
+
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+.kos-nav {
+  display: flex;
+
+  align-items: center;
+
+  gap: 30px;
+}
+
+
+.kos-nav button {
+  border: none;
+
+  background: transparent;
+
+  color: #5a2111;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 16px;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.kos-nav button:hover {
+  color: #8d3217;
+
+  transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   PROFILE BUTTON
+========================================================= */
+
+.kos-profile-button {
+  padding: 10px 20px;
+
+  border: none;
+
+  border-radius: 10px;
+
+  background: #7b2f18;
+
+  color: #fff8e8;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 15px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.kos-profile-button:hover {
+  background: #9b3d1e;
+
+  transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   MAIN CONTENT
+========================================================= */
+
+.kos-main-content {
+  width: 100%;
+
+  max-width: 1400px;
+
+  margin: 0 auto;
+
+  padding: 70px 6% 80px;
+}
+
+
+/* =========================================================
+   MAIN HERO
+========================================================= */
+
+.kos-main-hero {
+  min-height: 500px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 70px;
+}
+
+
+.kos-main-text {
+  max-width: 650px;
+}
+
+
+.kos-main-small-text {
+  margin: 0 0 15px;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 16px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.18em;
+
+  color: #8d3217;
+}
+
+
+.kos-main-text h1 {
+  margin: 0;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: clamp(58px, 7vw, 105px);
+
+  line-height: 0.88;
+
+  letter-spacing: -0.06em;
+
+  color: #5a2111;
+
+  text-shadow:
+    0 3px 0 rgba(255, 244, 215, 0.8),
+    0 8px 18px rgba(60, 25, 10, 0.12);
+}
+
+
+.kos-main-description {
+  max-width: 540px;
+
+  margin-top: 30px;
+ font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 19px;
+
+  line-height: 1.6;
+
+  color: #70402c;
+}
+
+
+/* =========================================================
+   MAIN ACTIONS
+========================================================= */
+
+.kos-main-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 15px;
+
+  margin-top: 32px;
+}
+
+
+.kos-primary-button {
+  padding: 14px 27px;
+
+  border: none;
+
+  border-radius: 10px;
+
+  background: #7b2f18;
+
+  color: #fff8e8;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 16px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.kos-primary-button:hover {
+  background: #9b3d1e;
+
+  transform: translateY(-2px);
+}
+
+
+.kos-secondary-button {
+  padding: 13px 26px;
+
+  border: 2px solid #7b2f18;
+
+  border-radius: 10px;
+
+  background: transparent;
+
+  color: #7b2f18;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 16px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+
+.kos-secondary-button:hover {
+  background: #7b2f18;
+
+  color: #fff8e8;
+}
+
+
+/* =========================================================
+   RIGHT CARD
+========================================================= */
+
+.kos-main-card {
+  width: 380px;
+
+  min-height: 350px;
+
+  flex-shrink: 0;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  text-align: center;
+
+  padding: 45px;
+
+  border-radius: 28px;
+
+  background:
+    rgba(255, 248, 232, 0.72);
+
+  border:
+    1px solid
+    rgba(141, 50, 23, 0.15);
+
+  box-shadow:
+    0 20px 45px
+    rgba(60, 25, 10, 0.12);
+}
+
+
+.kos-card-icon {
+  font-size: 75px;
+
+  margin-bottom: 20px;
+}
+
+
+.kos-main-card h2 {
+  margin: 0;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 32px;
+
+  color: #5a2111;
+}
+
+
+.kos-main-card p {
+  margin-top: 15px;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 17px;
+
+  line-height: 1.5;
+
+  color: #70402c;
+}
+
+
+/* =========================================================
+   FEATURE CARDS
+========================================================= */
+
+.kos-features {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap: 25px;
+
+  margin-top: 60px;
+}
+
+
+.kos-feature-card {
+  padding: 30px;
+
+  border-radius: 20px;
+
+  background:
+    rgba(255, 248, 232, 0.65);
+
+  border:
+    1px solid
+    rgba(141, 50, 23, 0.12);
+
+  box-shadow:
+    0 10px 25px
+    rgba(60, 25, 10, 0.08);
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+
+.kos-feature-card:hover {
+  transform: translateY(-5px);
+
+  box-shadow:
+    0 15px 30px
+    rgba(60, 25, 10, 0.13);
+}
+
+
+.kos-feature-card span {
+  font-size: 35px;
+}
+
+
+.kos-feature-card h3 {
+  margin:
+    15px 0 8px;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 24px;
+
+  color: #7b2f18;
+}
+
+
+.kos-feature-card p {
+  margin: 0;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 16px;
+
+  line-height: 1.5;
+
+  color: #70402c;
+}
+
+
+/* =========================================================
+   MAIN APP — SAME LANDING PAGE BACKGROUND
+========================================================= */
+
+.kos-app-background {
+  position: relative;
+
+  width: 100%;
+
+  min-height: 100vh;
+
+  overflow-x: hidden;
+
+  background: #f3e3c2;
+}
+
+
+/* =========================================================
+   SAME IMAGE AS LANDING PAGE
+========================================================= */
+
+.kos-app-kitchen-image {
+  position: fixed;
+
+  inset: 0;
+
+  width: 100%;
+
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+
+  object-position: center center;
+
+  transform: scale(1.01);
+
+  z-index: 0;
+
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   MAIN APP WARM OVERLAY
+========================================================= */
+
+.kos-app-overlay {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 1;
+
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(246, 231, 199, 0.25) 0%,
+      rgba(246, 231, 199, 0.12) 45%,
+      rgba(246, 231, 199, 0.05) 100%
+    );
+}
+
+
+/* =========================================================
+   MOBILE MAIN PAGE
+========================================================= */
+
+@media (max-width: 768px) {
+
+  .kos-navbar {
+    min-height: 70px;
+
+    padding: 0 5%;
+  }
+
+
+  .kos-logo {
+    font-size: 24px;
+  }
+
+
+  .kos-nav {
+    display: none;
+  }
+
+
+  .kos-profile-button {
+    padding: 9px 15px;
+
+    font-size: 14px;
+  }
+
+
+  .kos-main-content {
+    padding: 45px 6% 60px;
+  }
+
+
+  .kos-main-hero {
+    min-height: auto;
+
+    flex-direction: column;
+
+    align-items: stretch;
+
+    gap: 45px;
+  }
+
+
+  .kos-main-text h1 {
+    font-size: 17vw;
+  }
+
+
+  .kos-main-description {
+    font-size: 17px;
+
+    margin-top: 25px;
+  }
+
+
+  .kos-main-actions {
+    flex-direction: column;
+
+    align-items: stretch;
+  }
+
+
+  .kos-primary-button,
+  .kos-secondary-button {
+    width: 100%;
+  }
+
+
+  .kos-main-card {
+    width: 100%;
+
+    min-height: 280px;
+
+    padding: 30px;
+  }
+
+
+  .kos-features {
+    grid-template-columns: 1fr;
+
+    margin-top: 40px;
+  }
+
+
+  /* SAME LANDING IMAGE POSITION ON MOBILE */
+
+  .kos-app-kitchen-image {
+    object-position: 62% center;
+  }
+}
+
+
+/* =========================================================
+   SMALL PHONES
+========================================================= */
+
+@media (max-width: 420px) {
+
+  .kos-logo {
+    font-size: 21px;
+  }
+
+
+  .kos-main-content {
+    padding: 35px 5% 50px;
+  }
+
+
+  .kos-main-text h1 {
+    font-size: 18vw;
+  }
+
+
+  .kos-main-card {
+    min-height: 250px;
+
+    border-radius: 20px;
+  }
+
+
+  .kos-card-icon {
+    font-size: 60px;
+  }
+
+
+  .kos-main-card h2 {
+    font-size: 27px;
+  }
+
+
+  .kos-feature-card {
+    padding: 25px;
+  }
+}
+/* App Main View Background Styles */
+.kos-app-background {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-color: #fdfbf7;
+}
+
+.kos-app-kitchen-image {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+.kos-app-overlay,
+.kos-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(253, 251, 247, 0.35); /* reduced opacity so the background image remains vibrant and content stays visible */
+  z-index: 1;
+  pointer-events: none;
+}
+/* =========================================================
+   KITCHENOS DAY 2 DASHBOARD
+   ========================================================= */
+
+.kos-app {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+  color: #5a2111;
+}
+
+.kos-app-kitchen-image {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.kos-app-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: rgba(253, 247, 235, 0.12);
+}
+
+.kos-app-content {
+  position: relative;
+  z-index: 5;
+  width: 100%;
+  max-width: 428px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 24px 20px 110px;
+}
+
+/* TOP HEADER */
+
+.kos-dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.kos-logo-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #5a2111;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  text-shadow: 0 2px 12px rgba(255, 248, 232, 0.8);
+}
+
+.kos-dashboard-header p {
+  margin: 3px 0 0;
+  color: #70402c;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.kos-sign-in {
+  padding: 9px 18px;
+  border: 1px solid rgba(90, 33, 17, 0.15);
+  border-radius: 999px;
+  background: #7b2f18;
+  color: #fff8e8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 5px 14px rgba(90, 33, 17, 0.18);
+  transition:
+    background 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.kos-sign-in:hover {
+  background: #682613;
+  box-shadow: 0 7px 18px rgba(90, 33, 17, 0.24);
+  transform: translateY(-1px);
+}
+
+.kos-sign-in:active {
+  transform: scale(0.96);
+}
+
+/* MAIN */
+
+.kos-main-section {
+  min-height: calc(100vh - 150px);
+}
+
+.kos-dashboard {
+  display: flex;
+  min-height: calc(100vh - 150px);
+  flex-direction: column;
+}
+
+/* GREETING */
+
+.kos-greeting {
+  padding-top: 82px;
+  text-align: center;
+}
+
+.kos-greeting h1 {
+  margin: 0;
+  color: #5a2111;
+  font-size: clamp(1.7rem, 7vw, 2.15rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-shadow: 0 3px 18px rgba(255, 248, 232, 0.85);
+}
+
+.kos-greeting p {
+  margin: 8px 0 0;
+  color: #70402c;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-shadow: 0 2px 12px rgba(255, 248, 232, 0.9);
+}
+
+/* FOUR MAIN ACTIONS */
+
+.kos-dashboard-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 13px;
+  margin-top: 42px;
+}
+
+.kos-dashboard-action {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 64px;
+  padding: 13px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 24px;
+  background: rgba(255, 248, 232, 0.38);
+  box-shadow: 0 8px 25px rgba(82, 43, 20, 0.06);
+  backdrop-filter: blur(13px);
+  -webkit-backdrop-filter: blur(13px);
+  color: #5a2111;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.kos-dashboard-action:hover {
+  background: rgba(255, 248, 232, 0.56);
+  box-shadow: 0 10px 30px rgba(82, 43, 20, 0.1);
+  transform: translateY(-2px);
+}
+
+.kos-dashboard-action:active {
+  transform: scale(0.97);
+}
+
+.kos-dashboard-action span {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.kos-dashboard-action strong {
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+/* DIVIDER */
+
+.kos-dashboard-divider {
+  width: 90px;
+  height: 1px;
+  margin: 44px auto 0;
+  background: rgba(112, 64, 44, 0.4);
+}
+
+/* USE SOON */
+
+.kos-use-soon {
+  width: 100%;
+  margin-top: 28px;
+  padding: 18px 20px;
+  border: 1px solid rgba(123, 47, 24, 0.22);
+  border-radius: 24px;
+  background: rgba(255, 248, 232, 0.78);
+  box-shadow: 0 10px 28px rgba(90, 33, 17, 0.10);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  text-align: center;
+}
+
+.kos-use-soon-title {
+  margin: 0;
+  color: #7b2f18;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.kos-expiring {
+  margin: 8px 0 0;
+  color: #5a2111;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.kos-view-pantry {
+  margin-top: 11px;
+  padding: 8px 16px;
+  border: 1px solid rgba(123, 47, 24, 0.25);
+  border-radius: 999px;
+  background: #7b2f18;
+  color: #fff8e8;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(90, 33, 17, 0.16);
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.kos-view-pantry:hover {
+  background: #682613;
+  transform: translateY(-1px);
+}
+
+.kos-view-pantry:active {
+  transform: scale(0.96);
+}
+/* BOTTOM NAV */
+
+.kos-bottom-nav {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: calc(100% - 32px);
+  max-width: 390px;
+  padding: 8px 10px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: rgba(255, 248, 232, 0.58);
+  box-shadow: 0 12px 35px rgba(68, 35, 16, 0.13);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.kos-bottom-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.kos-bottom-nav-item span {
+  font-size: 1.25rem;
+  line-height: 1;
+  filter: grayscale(0.15);
+}
+
+.kos-bottom-nav-item:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.kos-bottom-nav-item:active {
+  transform: scale(0.9);
+}
+
+.kos-bottom-nav-item.is-active {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+/* PLACEHOLDER SECTIONS */
+
+.kos-section-placeholder {
+  display: flex;
+  min-height: calc(100vh - 180px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.kos-section-placeholder span {
+  font-size: 3rem;
+}
+
+.kos-section-placeholder h2 {
+  margin: 12px 0 0;
+  color: #5a2111;
+  font-size: 1.7rem;
+}
+
+.kos-section-placeholder p {
+  margin-top: 6px;
+  color: #70402c;
+}
+
+/* AUTH */
+
+.kos-auth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(55, 27, 13, 0.22);
+  backdrop-filter: blur(7px);
+}
+
+.kos-auth-modal {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 30px;
+  background: rgba(255, 248, 232, 0.88);
+  box-shadow: 0 25px 70px rgba(55, 27, 13, 0.2);
+  backdrop-filter: blur(25px);
+}
+
+.kos-auth-modal h2 {
+  margin: 0;
+  color: #5a2111;
+  font-size: 1.5rem;
+}
+
+.kos-auth-modal > p {
+  margin: 5px 0 20px;
+  color: #70402c;
+  font-size: 0.85rem;
+}
+
+.kos-auth-close {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  border: 0;
+  background: transparent;
+  color: #70402c;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.kos-auth-modal form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kos-auth-modal input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid #ead9b8;
+  border-radius: 14px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.65);
+  color: #5a2111;
+}
+
+.kos-auth-modal form button {
+  margin-top: 4px;
+  padding: 13px;
+  border: 0;
+  border-radius: 14px;
+  background: #7b2f18;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* MOBILE */
+
+@media (max-width: 480px) {
+  .kos-app-content {
+    padding: 20px 17px 105px;
+  }
+
+  .kos-greeting {
+    padding-top: 72px;
+  }
+
+  .kos-dashboard-actions {
+    gap: 10px;
+    margin-top: 36px;
+  }
+
+  .kos-dashboard-action {
+    min-height: 60px;
+    padding: 12px;
+    border-radius: 21px;
+  }
+
+  .kos-dashboard-action span {
+    font-size: 1.3rem;
+  }
+
+  .kos-dashboard-action strong {
+    font-size: 0.68rem;
+  }
+
+  .kos-bottom-nav {
+    bottom: 14px;
+    width: calc(100% - 24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kos-dashboard-action,
+  .kos-bottom-nav-item {
+    transition: none;
+  }
+}
+/* =========================================================
+   PANTRY DASHBOARD
+   ========================================================= */
+
+.kos-pantry-dashboard {
+  padding-top: 34px;
+  padding-bottom: 25px;
+}
+
+/* PAGE HEADER */
+
+.kos-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kos-page-icon {
+  font-size: 1.8rem;
+}
+
+.kos-page-heading h1 {
+  margin: 4px 0 0;
+  color: #5a2111;
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-shadow: 0 2px 12px rgba(255, 248, 232, 0.8);
+}
+
+.kos-page-heading p {
+  margin: 4px 0 0;
+  color: #70402c;
+  font-size: 0.78rem;
+}
+
+.kos-add-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 43px;
+  height: 43px;
+  border: 0;
+  border-radius: 50%;
+  background: #7b2f18;
+  color: #fff8e8;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 7px 18px rgba(90, 33, 17, 0.2);
+}
+
+/* STATS */
+
+.kos-pantry-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+  margin-top: 25px;
+}
+
+.kos-pantry-stat {
+  display: flex;
+  min-height: 76px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(123, 47, 24, 0.16);
+  border-radius: 20px;
+  background: rgba(255, 248, 232, 0.68);
+  box-shadow: 0 7px 20px rgba(90, 33, 17, 0.06);
+  backdrop-filter: blur(12px);
+}
+
+.kos-pantry-stat strong {
+  color: #5a2111;
+  font-size: 1.35rem;
+}
+
+.kos-pantry-stat span {
+  margin-top: 2px;
+  color: #70402c;
+  font-size: 0.67rem;
+  font-weight: 600;
+}
+
+/* SEARCH */
+
+.kos-pantry-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 20px;
+  padding: 12px 15px;
+  border: 1px solid rgba(123, 47, 24, 0.15);
+  border-radius: 17px;
+  background: rgba(255, 248, 232, 0.68);
+  backdrop-filter: blur(12px);
+}
+
+.kos-pantry-search span {
+  color: #7b2f18;
+  font-size: 1.3rem;
+}
+
+.kos-pantry-search input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #5a2111;
+  font-size: 0.82rem;
+}
+
+.kos-pantry-search input::placeholder {
+  color: #967662;
+}
+
+/* CATEGORIES */
+
+.kos-category-section {
+  margin-top: 22px;
+}
+
+.kos-small-heading {
+  margin: 0;
+  color: #7b2f18;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.kos-category-scroll {
+  display: flex;
+  gap: 7px;
+  margin-top: 9px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.kos-category-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.kos-category-button {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border: 1px solid rgba(123, 47, 24, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 248, 232, 0.55);
+  color: #70402c;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kos-category-button.is-selected {
+  border-color: #7b2f18;
+  background: #7b2f18;
+  color: #fff8e8;
+}
+
+/* LIST */
+
+.kos-ingredient-section {
+  margin-top: 25px;
+}
+
+.kos-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kos-list-heading > span {
+  color: #70402c;
+  font-size: 0.68rem;
+}
+
+.kos-ingredient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 10px;
+}
+
+.kos-ingredient-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 11px 12px;
+  border: 1px solid rgba(123, 47, 24, 0.14);
+  border-radius: 20px;
+  background: rgba(255, 248, 232, 0.7);
+  box-shadow: 0 6px 20px rgba(90, 33, 17, 0.055);
+  backdrop-filter: blur(12px);
+}
+
+.kos-ingredient-card.is-expiring {
+  border-color: rgba(141, 50, 23, 0.35);
+}
+
+.kos-ingredient-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 45px;
+  height: 45px;
+  flex-shrink: 0;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 1.45rem;
+}
+
+.kos-ingredient-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.kos-ingredient-info h3 {
+  margin: 0;
+  color: #5a2111;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.kos-ingredient-info p {
+  margin: 2px 0 0;
+  color: #70402c;
+  font-size: 0.72rem;
+}
+
+.kos-ingredient-info small {
+  display: block;
+  margin-top: 3px;
+  color: #967662;
+  font-size: 0.62rem;
+}
+
+.kos-ingredient-card.is-expiring
+  .kos-ingredient-info small {
+  color: #8d3217;
+  font-weight: 700;
+}
+
+.kos-ingredient-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+}
+
+.kos-low-stock {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(141, 50, 23, 0.12);
+  color: #8d3217;
+  font-size: 0.58rem;
+  font-weight: 800;
+}
+
+.kos-delete-button {
+  border: 0;
+  background: transparent;
+  color: #a88978;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* ADD INGREDIENT */
+
+.kos-add-ingredient-wide {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 17px;
+  padding: 12px;
+  border: 1px solid rgba(123, 47, 24, 0.22);
+  border-radius: 17px;
+  background: rgba(255, 248, 232, 0.58);
+  color: #7b2f18;
+  font-size: 0.78rem;
+  font-weight: 750;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.kos-add-ingredient-wide span {
+  font-size: 1.1rem;
+}
+
+/* EMPTY */
+
+.kos-empty-state {
+  margin-top: 10px;
+  padding: 35px 20px;
+  border: 1px dashed rgba(123, 47, 24, 0.25);
+  border-radius: 22px;
+  background: rgba(255, 248, 232, 0.5);
+  text-align: center;
+}
+
+.kos-empty-state span {
+  font-size: 2rem;
+}
+
+.kos-empty-state h3 {
+  margin: 8px 0 0;
+  color: #5a2111;
+  font-size: 0.95rem;
+}
+
+.kos-empty-state p {
+  margin: 5px 0 0;
+  color: #70402c;
+  font-size: 0.7rem;
+}
+
+/* FORM */
+
+.kos-add-modal form {
+  gap: 10px;
+}
+
+.kos-add-modal select,
+.kos-add-modal input {
+  box-sizing: border-box;
+}
+
+.kos-form-row {
+  display: grid;
+  grid-template-columns: 1fr 0.7fr;
+  gap: 10px;
+}
+
+.kos-add-modal select {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid #ead9b8;
+  border-radius: 14px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.65);
+  color: #5a2111;
+}
+
+@media (max-width: 480px) {
+  .kos-pantry-dashboard {
+    padding-top: 28px;
+  }
+
+  .kos-pantry-stats {
+    gap: 7px;
+  }
+
+  .kos-pantry-stat {
+    min-height: 70px;
+  }
+
+  .kos-ingredient-card {
+    min-height: 72px;
+  }
+}
+/* Add/Refine in your global CSS stylesheet */
+
+/* Counter-rotate items so SVGs remain upright while orbiting */
+.kos-orbit-1 .orbit-item { animation: counter-rotate 20s linear infinite; transform: scale(1.1); filter: blur(0px); z-index: 10; }
+.kos-orbit-2 .orbit-item { animation: counter-rotate 25s linear infinite; transform: scale(0.85); filter: blur(0.5px); z-index: 5; }
+.kos-orbit-3 .orbit-item { animation: counter-rotate 18s linear infinite; transform: scale(1.25); filter: blur(0px); z-index: 15; }
+.kos-orbit-4 .orbit-item { animation: counter-rotate 22s linear infinite; transform: scale(0.9); filter: blur(0.3px); z-index: 6; }
+.kos-orbit-5 .orbit-item { animation: counter-rotate 30s linear infinite; transform: scale(0.75); filter: blur(1px); z-index: 2; }
+.kos-orbit-6 .orbit-item { animation: counter-rotate 15s linear infinite; transform: scale(1.05); filter: blur(0px); z-index: 12; }
+
+@keyframes counter-rotate {
+  0% { transform: rotate(360deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+  .orbit-container {
+    transform: scale(0.7);
+  }
+}
+
+@media (max-width: 480px) {
+  .orbit-container {
+    transform: scale(0.5);
+  }
+}
+
+/* Reduced motion preference compliance */
+@media (prefers-reduced-motion: reduce) {
+  .kos-orbit-1, .kos-orbit-2, .kos-orbit-3, 
+  .kos-orbit-4, .kos-orbit-5, .kos-orbit-6 {
+    animation: none !important;
+  }
+}
+
+/* =========================================================
+   UI CARD CONTAINER WRAPPERS (Pantry, Home, Recipes, etc.)
+========================================================= */
+
+.kos-dashboard,
+.kos-pantry-dashboard,
+.kos-profile-dashboard,
+.kos-section-placeholder {
+  border: 1px solid rgba(123, 47, 24, 0.22);
+  border-radius: 28px;
+  background: rgba(255, 248, 232, 0.78);
+  box-shadow: 0 12px 35px rgba(90, 33, 17, 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 24px 20px;
+  margin-top: 10px;
+}
+
+.kos-profile-card,
+.kos-profile-use-soon {
+  border: 1px solid rgba(123, 47, 24, 0.18);
+  border-radius: 22px;
+  background: rgba(255, 248, 232, 0.85);
+  box-shadow: 0 8px 20px rgba(90, 33, 17, 0.08);
+  padding: 16px 18px;
+  margin-top: 14px;
+}

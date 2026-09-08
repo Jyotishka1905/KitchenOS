@@ -1,0 +1,1286 @@
+import { useMemo, useState, type FormEvent } from "react";
+import LandingPage from "./pages/LandingPage";
+import { NavigationDock } from "./components/NavigationDock";
+
+type Tab = "pantry" | "recipes" | "planner" | "shopping";
+
+type PantryItem = {
+  id: number;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  expiry: string;
+};
+
+type ShoppingItem = {
+  id: number;
+  name: string;
+  quantity: number;
+  unit: string;
+  checked: boolean;
+};
+
+type Recipe = {
+  id: number;
+  name: string;
+  icon: string;
+  description: string;
+  ingredients: string[];
+  time: string;
+};
+
+const initialPantry: PantryItem[] = [
+  {
+    id: 1,
+    name: "Tomatoes",
+    category: "Vegetables",
+    quantity: 4,
+    unit: "pcs",
+    expiry: "2026-09-05",
+  },
+  {
+    id: 2,
+    name: "Eggs",
+    category: "Dairy",
+    quantity: 6,
+    unit: "pcs",
+    expiry: "2026-09-08",
+  },
+  {
+    id: 3,
+    name: "Rice",
+    category: "Grains",
+    quantity: 2,
+    unit: "kg",
+    expiry: "2026-10-15",
+  },
+  {
+    id: 4,
+    name: "Onion",
+    category: "Vegetables",
+    quantity: 1,
+    unit: "pcs",
+    expiry: "2026-09-04",
+  },
+];
+
+const initialShopping: ShoppingItem[] = [
+  {
+    id: 1,
+    name: "Milk",
+    quantity: 1,
+    unit: "L",
+    checked: false,
+  },
+  {
+    id: 2,
+    name: "Bread",
+    quantity: 1,
+    unit: "pack",
+    checked: false,
+  },
+];
+
+const recipes: Recipe[] = [
+  {
+    id: 1,
+    name: "Tomato Egg Rice",
+    icon: "🍳",
+    description: "A quick comfort meal using simple pantry ingredients.",
+    ingredients: ["Tomatoes", "Eggs", "Rice", "Onion"],
+    time: "20 min",
+  },
+  {
+    id: 2,
+    name: "Classic Tomato Pasta",
+    icon: "🍝",
+    description: "A simple pasta dish with fresh tomato and onion.",
+    ingredients: ["Tomatoes", "Onion", "Pasta"],
+    time: "25 min",
+  },
+  {
+    id: 3,
+    name: "Vegetable Omelette",
+    icon: "🥚",
+    description: "A protein-rich omelette for a quick breakfast.",
+    ingredients: ["Eggs", "Tomatoes", "Onion"],
+    time: "15 min",
+  },
+  {
+    id: 4,
+    name: "Fried Rice",
+    icon: "🍚",
+    description: "A flexible recipe perfect for using leftover ingredients.",
+    ingredients: ["Rice", "Eggs", "Onion", "Carrot"],
+    time: "20 min",
+  },
+];
+
+const days = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+export default function App() {
+  const [inApp, setInApp] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("pantry");
+
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(true);
+
+  const [user, setUser] = useState<{ email: string } | null>(null);
+
+  const [emailInput, setEmailInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+
+  const [pantryItems, setPantryItems] =
+    useState<PantryItem[]>(initialPantry);
+
+  const [shoppingItems, setShoppingItems] =
+    useState<ShoppingItem[]>(initialShopping);
+
+  const [mealPlan, setMealPlan] = useState<Record<string, string>>({});
+
+  const [selectedDay, setSelectedDay] = useState("Monday");
+
+  const [recipeSearch, setRecipeSearch] = useState("");
+
+  const [isPantryModalOpen, setIsPantryModalOpen] = useState(false);
+  const [isShoppingModalOpen, setIsShoppingModalOpen] = useState(false);
+
+  const [newPantryName, setNewPantryName] = useState("");
+  const [newPantryCategory, setNewPantryCategory] =
+    useState("Vegetables");
+  const [newPantryQuantity, setNewPantryQuantity] = useState("1");
+  const [newPantryUnit, setNewPantryUnit] = useState("pcs");
+  const [newPantryExpiry, setNewPantryExpiry] = useState("");
+
+  const [newShoppingName, setNewShoppingName] = useState("");
+  const [newShoppingQuantity, setNewShoppingQuantity] = useState("1");
+  const [newShoppingUnit, setNewShoppingUnit] = useState("pcs");
+
+  const [mealInput, setMealInput] = useState("");
+
+  const handleGetStarted = () => {
+    setInApp(true);
+  };
+
+  const handleAuthSubmit = (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!emailInput || !passwordInput) return;
+
+    setUser({ email: emailInput });
+    setIsAuthOpen(false);
+    setEmailInput("");
+    setPasswordInput("");
+  };
+
+  const handleSignOut = () => {
+    setUser(null);
+  };
+
+  const getDaysUntilExpiry = (expiry: string) => {
+    if (!expiry) return 999;
+
+    const today = new Date();
+    const expiryDate = new Date(`${expiry}T23:59:59`);
+
+    const difference =
+      expiryDate.getTime() - today.getTime();
+
+    return Math.ceil(difference / (1000 * 60 * 60 * 24));
+  };
+
+  const lowStockItems = useMemo(
+    () => pantryItems.filter((item) => item.quantity <= 1),
+    [pantryItems]
+  );
+
+  const expiringItems = useMemo(
+    () =>
+      pantryItems.filter(
+        (item) =>
+          getDaysUntilExpiry(item.expiry) <= 3 &&
+          getDaysUntilExpiry(item.expiry) >= 0
+      ),
+    [pantryItems]
+  );
+
+  const filteredRecipes = useMemo(() => {
+    const search = recipeSearch.toLowerCase().trim();
+
+    if (!search) return recipes;
+
+    return recipes.filter(
+      (recipe) =>
+        recipe.name.toLowerCase().includes(search) ||
+        recipe.ingredients.some((ingredient) =>
+          ingredient.toLowerCase().includes(search)
+        )
+    );
+  }, [recipeSearch]);
+
+  const addPantryItem = (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!newPantryName.trim()) return;
+
+    const newItem: PantryItem = {
+      id: Date.now(),
+      name: newPantryName.trim(),
+      category: newPantryCategory,
+      quantity: Number(newPantryQuantity) || 1,
+      unit: newPantryUnit,
+      expiry: newPantryExpiry,
+    };
+
+    setPantryItems((current) => [...current, newItem]);
+
+    setNewPantryName("");
+    setNewPantryCategory("Vegetables");
+    setNewPantryQuantity("1");
+    setNewPantryUnit("pcs");
+    setNewPantryExpiry("");
+    setIsPantryModalOpen(false);
+  };
+
+  const deletePantryItem = (id: number) => {
+    setPantryItems((current) =>
+      current.filter((item) => item.id !== id)
+    );
+  };
+
+  const addShoppingItem = (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!newShoppingName.trim()) return;
+
+    const newItem: ShoppingItem = {
+      id: Date.now(),
+      name: newShoppingName.trim(),
+      quantity: Number(newShoppingQuantity) || 1,
+      unit: newShoppingUnit,
+      checked: false,
+    };
+
+    setShoppingItems((current) => [...current, newItem]);
+
+    setNewShoppingName("");
+    setNewShoppingQuantity("1");
+    setNewShoppingUnit("pcs");
+    setIsShoppingModalOpen(false);
+  };
+
+  const toggleShoppingItem = (id: number) => {
+    setShoppingItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? { ...item, checked: !item.checked }
+          : item
+      )
+    );
+  };
+
+  const deleteShoppingItem = (id: number) => {
+    setShoppingItems((current) =>
+      current.filter((item) => item.id !== id)
+    );
+  };
+
+  const clearCompletedShopping = () => {
+    setShoppingItems((current) =>
+      current.filter((item) => !item.checked)
+    );
+  };
+
+  const addRecipeMissingIngredients = (recipe: Recipe) => {
+    const pantryNames = pantryItems.map((item) =>
+      item.name.toLowerCase()
+    );
+
+    const missing = recipe.ingredients.filter(
+      (ingredient) =>
+        !pantryNames.includes(ingredient.toLowerCase())
+    );
+
+    if (missing.length === 0) {
+      setActiveTab("planner");
+      return;
+    }
+
+    const additions: ShoppingItem[] = missing
+      .filter(
+        (ingredient) =>
+          !shoppingItems.some(
+            (item) =>
+              item.name.toLowerCase() ===
+              ingredient.toLowerCase()
+          )
+      )
+      .map((ingredient, index) => ({
+        id: Date.now() + index,
+        name: ingredient,
+        quantity: 1,
+        unit: "pcs",
+        checked: false,
+      }));
+
+    if (additions.length > 0) {
+      setShoppingItems((current) => [
+        ...current,
+        ...additions,
+      ]);
+    }
+
+    setActiveTab("shopping");
+  };
+
+  const planRecipe = (recipe: Recipe) => {
+    setMealInput(recipe.name);
+    setActiveTab("planner");
+  };
+
+  const saveMeal = () => {
+    if (!mealInput.trim()) return;
+
+    setMealPlan((current) => ({
+      ...current,
+      [selectedDay]: mealInput.trim(),
+    }));
+
+    setMealInput("");
+  };
+
+  const removeMeal = () => {
+    setMealPlan((current) => {
+      const updated = { ...current };
+      delete updated[selectedDay];
+      return updated;
+    });
+  };
+
+  const renderPantry = () => (
+    <div className="flex flex-col gap-4 w-full">
+      <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-5 shadow-lg border border-[#ead9b8]">
+        <p className="text-xs uppercase tracking-wider text-[#8d3217] font-semibold">
+          Your Kitchen
+        </p>
+
+        <h1 className="text-3xl font-bold text-[#5a2111] mt-1">
+          Pantry
+        </h1>
+
+        <p className="text-xs text-[#70402c] mt-1">
+          Keep track of what you have and use ingredients before
+          they go to waste.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setIsPantryModalOpen(true)}
+          className="mt-4 w-full rounded-xl bg-[#7b2f18] text-[#fff8e8] py-3 text-xs font-semibold shadow-md hover:bg-[#8d3217] transition-all cursor-pointer"
+        >
+          + Add Ingredient
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md border border-[#ead9b8] p-3 text-center shadow-md">
+          <p className="text-xl font-bold text-[#5a2111]">
+            {pantryItems.length}
+          </p>
+          <p className="text-[10px] text-[#70402c]">
+            Items
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md border border-[#ead9b8] p-3 text-center shadow-md">
+          <p className="text-xl font-bold text-[#8d3217]">
+            {lowStockItems.length}
+          </p>
+          <p className="text-[10px] text-[#70402c]">
+            Low Stock
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md border border-[#ead9b8] p-3 text-center shadow-md">
+          <p className="text-xl font-bold text-[#8d3217]">
+            {expiringItems.length}
+          </p>
+          <p className="text-[10px] text-[#70402c]">
+            Expiring
+          </p>
+        </div>
+      </div>
+
+      {expiringItems.length > 0 && (
+        <div className="rounded-2xl bg-[#7b2f18]/95 backdrop-blur-md p-4 text-[#fff8e8] shadow-lg">
+          <p className="text-[10px] uppercase tracking-wider opacity-80">
+            Use these soon
+          </p>
+
+          <h2 className="font-bold text-base mt-1">
+            {expiringItems
+              .map((item) => item.name)
+              .join(", ")}
+          </h2>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("recipes")}
+            className="mt-3 rounded-xl bg-[#fff8e8] text-[#7b2f18] px-4 py-2 text-xs font-semibold cursor-pointer"
+          >
+            Find Recipes
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {pantryItems.map((item) => {
+          const daysLeft = getDaysUntilExpiry(item.expiry);
+          const isLow = item.quantity <= 1;
+          const isExpiring =
+            daysLeft <= 3 && daysLeft >= 0;
+
+          return (
+            <div
+              key={item.id}
+              className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-4 border border-[#ead9b8] shadow-md"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-[#ead9b8]/70 flex items-center justify-center text-xl">
+                    {item.category === "Vegetables"
+                      ? "🥕"
+                      : item.category === "Dairy"
+                      ? "🥛"
+                      : item.category === "Grains"
+                      ? "🌾"
+                      : "🍴"}
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-sm text-[#5a2111]">
+                      {item.name}
+                    </h3>
+
+                    <p className="text-[10px] text-[#70402c]">
+                      {item.category}
+                    </p>
+
+                    <p className="text-xs font-semibold text-[#8d3217] mt-1">
+                      {item.quantity} {item.unit}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => deletePantryItem(item.id)}
+                  className="w-7 h-7 rounded-full bg-[#ead9b8]/50 text-[#8d3217] hover:bg-[#ead9b8] cursor-pointer"
+                  aria-label={`Delete ${item.name}`}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 mt-3">
+                {isLow && (
+                  <span className="rounded-full bg-[#f3d2b9] px-2.5 py-1 text-[9px] font-bold text-[#8d3217]">
+                    LOW STOCK
+                  </span>
+                )}
+
+                {isExpiring && (
+                  <span className="rounded-full bg-[#f3d2b9] px-2.5 py-1 text-[9px] font-bold text-[#8d3217]">
+                    EXPIRES SOON
+                  </span>
+                )}
+
+                {!isLow && !isExpiring && (
+                  <span className="rounded-full bg-[#e5ead5] px-2.5 py-1 text-[9px] font-bold text-[#53621e]">
+                    STOCK OK
+                  </span>
+                )}
+
+                <span className="text-[9px] text-[#70402c] ml-auto">
+                  {item.expiry
+                    ? `Expires ${item.expiry}`
+                    : "No expiry date"}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab("recipes")}
+          className="rounded-2xl bg-[#fff8e8]/95 border border-[#ead9b8] p-4 text-left shadow-md hover:bg-[#fff3d1] cursor-pointer"
+        >
+          <span className="text-2xl">🍳</span>
+          <h3 className="font-bold text-sm text-[#5a2111] mt-2">
+            Recipes
+          </h3>
+          <p className="text-[10px] text-[#70402c]">
+            Cook what you already have
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("shopping")}
+          className="rounded-2xl bg-[#fff8e8]/95 border border-[#ead9b8] p-4 text-left shadow-md hover:bg-[#fff3d1] cursor-pointer"
+        >
+          <span className="text-2xl">🛒</span>
+          <h3 className="font-bold text-sm text-[#5a2111] mt-2">
+            Shopping
+          </h3>
+          <p className="text-[10px] text-[#70402c]">
+            Restock essentials
+          </p>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderRecipes = () => (
+    <div className="flex flex-col gap-4 w-full">
+      <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-5 shadow-lg border border-[#ead9b8]">
+        <p className="text-xs uppercase tracking-wider text-[#8d3217] font-semibold">
+          Smart Cooking
+        </p>
+
+        <h1 className="text-3xl font-bold text-[#5a2111] mt-1">
+          Recipes
+        </h1>
+
+        <p className="text-xs text-[#70402c] mt-1">
+          Discover meals based on the ingredients already in
+          your kitchen.
+        </p>
+
+        <div className="relative mt-4">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2">
+            🔎
+          </span>
+
+          <input
+            value={recipeSearch}
+            onChange={(e) => setRecipeSearch(e.target.value)}
+            placeholder="Search recipes or ingredients..."
+            className="w-full rounded-xl bg-white/90 border border-[#ead9b8] pl-9 pr-3 py-3 text-xs text-[#5a2111] outline-none focus:ring-2 focus:ring-[#7b2f18]"
+          />
+        </div>
+      </div>
+
+      {filteredRecipes.map((recipe) => {
+        const pantryNames = pantryItems.map((item) =>
+          item.name.toLowerCase()
+        );
+
+        const availableCount = recipe.ingredients.filter(
+          (ingredient) =>
+            pantryNames.includes(ingredient.toLowerCase())
+        ).length;
+
+        const missingCount =
+          recipe.ingredients.length - availableCount;
+
+        return (
+          <div
+            key={recipe.id}
+            className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-4 border border-[#ead9b8] shadow-md"
+          >
+            <div className="flex gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-[#ead9b8]/70 flex items-center justify-center text-3xl">
+                {recipe.icon}
+              </div>
+
+              <div className="flex-1">
+                <div className="flex justify-between gap-2">
+                  <h2 className="font-bold text-base text-[#5a2111]">
+                    {recipe.name}
+                  </h2>
+
+                  <span className="text-[10px] text-[#8d3217] font-semibold whitespace-nowrap">
+                    {recipe.time}
+                  </span>
+                </div>
+
+                <p className="text-[10px] text-[#70402c] mt-1 leading-relaxed">
+                  {recipe.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {recipe.ingredients.map((ingredient) => {
+                const available = pantryNames.includes(
+                  ingredient.toLowerCase()
+                );
+
+                return (
+                  <span
+                    key={ingredient}
+                    className={`rounded-full px-2.5 py-1 text-[9px] font-medium ${
+                      available
+                        ? "bg-[#e5ead5] text-[#53621e]"
+                        : "bg-[#f3d2b9] text-[#8d3217]"
+                    }`}
+                  >
+                    {available ? "✓" : "+"} {ingredient}
+                  </span>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => planRecipe(recipe)}
+                className="flex-1 rounded-xl bg-[#7b2f18] text-[#fff8e8] py-2.5 text-xs font-semibold cursor-pointer hover:bg-[#8d3217]"
+              >
+                Plan Meal
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  addRecipeMissingIngredients(recipe)
+                }
+                className="flex-1 rounded-xl border border-[#7b2f18] text-[#7b2f18] py-2.5 text-xs font-semibold cursor-pointer hover:bg-[#ead9b8]/40"
+              >
+                {missingCount > 0
+                  ? `Add ${missingCount} Missing`
+                  : "Use Pantry"}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderPlanner = () => (
+    <div className="flex flex-col gap-4 w-full">
+      <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-5 shadow-lg border border-[#ead9b8]">
+        <p className="text-xs uppercase tracking-wider text-[#8d3217] font-semibold">
+          Organize
+        </p>
+
+        <h1 className="text-3xl font-bold text-[#5a2111] mt-1">
+          Meal Planner
+        </h1>
+
+        <p className="text-xs text-[#70402c] mt-1">
+          Plan your week and reduce last-minute food decisions.
+        </p>
+      </div>
+
+      <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-3 border border-[#ead9b8] shadow-md">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {days.map((day) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => setSelectedDay(day)}
+              className={`min-w-[78px] rounded-xl px-3 py-2.5 text-[10px] font-semibold cursor-pointer transition-all ${
+                selectedDay === day
+                  ? "bg-[#7b2f18] text-[#fff8e8]"
+                  : "bg-[#ead9b8]/50 text-[#70402c]"
+              }`}
+            >
+              {day.slice(0, 3)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-[#7b2f18]/95 backdrop-blur-md p-5 text-[#fff8e8] shadow-lg">
+        <p className="text-[10px] uppercase tracking-wider opacity-80">
+          Selected Day
+        </p>
+
+        <h2 className="text-2xl font-bold mt-1">
+          {selectedDay}
+        </h2>
+
+        {mealPlan[selectedDay] ? (
+          <>
+            <div className="mt-4 rounded-xl bg-[#fff8e8]/15 p-4">
+              <p className="text-[10px] opacity-75">
+                Planned meal
+              </p>
+
+              <p className="font-bold text-base mt-1">
+                {mealPlan[selectedDay]}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={removeMeal}
+              className="mt-3 rounded-xl bg-[#fff8e8] text-[#7b2f18] px-4 py-2 text-xs font-semibold cursor-pointer"
+            >
+              Remove Meal
+            </button>
+          </>
+        ) : (
+          <p className="text-xs opacity-80 mt-3">
+            Nothing planned yet. Add a meal below.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-5 border border-[#ead9b8] shadow-md">
+        <label className="block text-xs font-semibold text-[#70402c] mb-2">
+          Meal for {selectedDay}
+        </label>
+
+        <input
+          value={mealInput}
+          onChange={(e) => setMealInput(e.target.value)}
+          placeholder="e.g. Tomato Egg Rice"
+          className="w-full rounded-xl bg-white border border-[#ead9b8] px-3 py-3 text-xs text-[#5a2111] outline-none focus:ring-2 focus:ring-[#7b2f18]"
+        />
+
+        <button
+          type="button"
+          onClick={saveMeal}
+          className="w-full mt-3 rounded-xl bg-[#7b2f18] text-[#fff8e8] py-3 text-xs font-semibold cursor-pointer hover:bg-[#8d3217]"
+        >
+          Save Meal
+        </button>
+      </div>
+
+      <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-5 border border-[#ead9b8] shadow-md">
+        <h2 className="font-bold text-[#5a2111] text-sm">
+          Weekly Overview
+        </h2>
+
+        <div className="flex flex-col gap-2 mt-3">
+          {days.map((day) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => setSelectedDay(day)}
+              className="flex items-center justify-between rounded-xl bg-[#ead9b8]/35 px-3 py-3 text-left cursor-pointer hover:bg-[#ead9b8]/60"
+            >
+              <span className="text-xs font-semibold text-[#5a2111]">
+                {day}
+              </span>
+
+              <span className="text-[10px] text-[#70402c]">
+                {mealPlan[day] || "Not planned"}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderShopping = () => (
+    <div className="flex flex-col gap-4 w-full">
+      <div className="rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-5 shadow-lg border border-[#ead9b8]">
+        <p className="text-xs uppercase tracking-wider text-[#8d3217] font-semibold">
+          Grocery Manager
+        </p>
+
+        <h1 className="text-3xl font-bold text-[#5a2111] mt-1">
+          Shopping
+        </h1>
+
+        <p className="text-xs text-[#70402c] mt-1">
+          Keep your grocery list organized and ready for your
+          next trip.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => setIsShoppingModalOpen(true)}
+          className="mt-4 w-full rounded-xl bg-[#7b2f18] text-[#fff8e8] py-3 text-xs font-semibold shadow-md cursor-pointer hover:bg-[#8d3217]"
+        >
+          + Add Grocery Item
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl bg-[#fff8e8]/95 border border-[#ead9b8] p-4 shadow-md">
+          <p className="text-xl font-bold text-[#5a2111]">
+            {shoppingItems.filter((item) => !item.checked).length}
+          </p>
+          <p className="text-[10px] text-[#70402c]">
+            To Buy
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-[#fff8e8]/95 border border-[#ead9b8] p-4 shadow-md">
+          <p className="text-xl font-bold text-[#8d3217]">
+            {shoppingItems.filter((item) => item.checked).length}
+          </p>
+          <p className="text-[10px] text-[#70402c]">
+            Purchased
+          </p>
+        </div>
+      </div>
+
+      {shoppingItems.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {shoppingItems.map((item) => (
+            <div
+              key={item.id}
+              className={`rounded-2xl bg-[#fff8e8]/95 backdrop-blur-md p-4 border border-[#ead9b8] shadow-md flex items-center gap-3 ${
+                item.checked ? "opacity-60" : ""
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => toggleShoppingItem(item.id)}
+                className={`w-7 h-7 rounded-full border flex items-center justify-center text-xs font-bold cursor-pointer ${
+                  item.checked
+                    ? "bg-[#7b2f18] border-[#7b2f18] text-[#fff8e8]"
+                    : "border-[#8d3217] text-transparent"
+                }`}
+                aria-label={`Mark ${item.name} as ${
+                  item.checked ? "not purchased" : "purchased"
+                }`}
+              >
+                ✓
+              </button>
+
+              <div className="flex-1">
+                <p
+                  className={`text-sm font-semibold text-[#5a2111] ${
+                    item.checked ? "line-through" : ""
+                  }`}
+                >
+                  {item.name}
+                </p>
+
+                <p className="text-[10px] text-[#70402c]">
+                  {item.quantity} {item.unit}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => deleteShoppingItem(item.id)}
+                className="w-7 h-7 rounded-full bg-[#ead9b8]/50 text-[#8d3217] cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl bg-[#fff8e8]/95 p-6 border border-[#ead9b8] text-center shadow-md">
+          <span className="text-4xl">🛒</span>
+
+          <h2 className="font-bold text-[#5a2111] mt-3">
+            Your list is empty
+          </h2>
+
+          <p className="text-xs text-[#70402c] mt-1">
+            Add something you need from the grocery store.
+          </p>
+        </div>
+      )}
+
+      {shoppingItems.some((item) => item.checked) && (
+        <button
+          type="button"
+          onClick={clearCompletedShopping}
+          className="rounded-xl border border-[#7b2f18] text-[#7b2f18] py-3 text-xs font-semibold cursor-pointer hover:bg-[#ead9b8]/40"
+        >
+          Clear Purchased Items
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setActiveTab("pantry")}
+        className="rounded-2xl bg-[#fff8e8]/95 border border-[#ead9b8] p-4 text-left shadow-md cursor-pointer"
+      >
+        <span className="text-2xl">🥕</span>
+
+        <h3 className="font-bold text-sm text-[#5a2111] mt-2">
+          Back to Pantry
+        </h3>
+
+        <p className="text-[10px] text-[#70402c]">
+          Check what you already have before shopping.
+        </p>
+      </button>
+    </div>
+  );
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case "pantry":
+        return renderPantry();
+
+      case "recipes":
+        return renderRecipes();
+
+      case "planner":
+        return renderPlanner();
+
+      case "shopping":
+        return renderShopping();
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-full relative overflow-x-hidden bg-[#fdfbf7]">
+      {!inApp ? (
+        <LandingPage onGetStarted={handleGetStarted} />
+      ) : (
+        <main className="relative min-h-screen w-full flex flex-col items-center">
+          {/* EXACT SAME KITCHEN BACKGROUND */}
+          <img
+            className="fixed inset-0 w-full h-full object-cover z-0 pointer-events-none"
+            src="/images/kitchen-hero.png"
+            alt=""
+            draggable={false}
+          />
+
+          <div
+            className="fixed inset-0 bg-[#fdfbf7]/20 z-10 pointer-events-none"
+            aria-hidden="true"
+          />
+
+          <div className="relative z-[25] w-full max-w-[428px] min-h-screen px-5 pt-6 pb-32 flex flex-col">
+            {/* HEADER */}
+            <header className="w-full flex items-center justify-between mb-6">
+              <button
+                type="button"
+                onClick={() => setInApp(false)}
+                className="text-left cursor-pointer"
+              >
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#8d3217] font-semibold">
+                  KitchenOS PWA
+                </p>
+
+                <h2 className="text-base font-bold text-[#5a2111]">
+                  Smart Kitchen
+                </h2>
+              </button>
+
+              {user ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 bg-[#fff8e8]/95 backdrop-blur-md px-3 py-1.5 rounded-full border border-[#ead9b8] shadow-sm">
+                    <span className="w-7 h-7 rounded-full bg-[#7b2f18] text-[#fff8e8] flex items-center justify-center text-xs font-bold">
+                      {user.email.charAt(0).toUpperCase()}
+                    </span>
+
+                    <span className="text-xs font-medium text-[#5a2111] max-w-[90px] truncate">
+                      {user.email}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="text-[10px] font-semibold text-[#8d3217] cursor-pointer"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(true);
+                    setIsAuthOpen(true);
+                  }}
+                  className="px-4 py-2 rounded-full bg-[#7b2f18] text-[#fff8e8] text-xs font-semibold shadow-md hover:bg-[#8d3217] transition-all cursor-pointer"
+                >
+                  Sign In
+                </button>
+              )}
+            </header>
+
+            {/* PAGE CONTENT */}
+            <section className="flex-1 w-full">
+              {renderContent()}
+            </section>
+
+            {/* NAVIGATION */}
+            <NavigationDock
+              activeTab={activeTab}
+              setActiveTab={(tab: string) =>
+                setActiveTab(tab as Tab)
+              }
+            />
+          </div>
+
+          {/* AUTH MODAL */}
+          {isAuthOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="w-full max-w-[360px] rounded-3xl bg-[#fff8e8] border border-[#ead9b8] p-6 shadow-2xl text-[#5a2111] relative">
+                <button
+                  type="button"
+                  onClick={() => setIsAuthOpen(false)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#ead9b8]/50 flex items-center justify-center text-sm font-bold hover:bg-[#ead9b8] cursor-pointer"
+                >
+                  ✕
+                </button>
+
+                <h3 className="text-xl font-bold mb-1">
+                  {isSignUp
+                    ? "Create Account"
+                    : "Welcome Back"}
+                </h3>
+
+                <p className="text-xs text-[#70402c] mb-5">
+                  Manage your smart kitchen profile & data.
+                </p>
+
+                <form
+                  onSubmit={handleAuthSubmit}
+                  className="flex flex-col gap-3"
+                >
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#70402c] mb-1">
+                      Email Address
+                    </label>
+
+                    <input
+                      type="email"
+                      required
+                      value={emailInput}
+                      onChange={(e) =>
+                        setEmailInput(e.target.value)
+                      }
+                      placeholder="name@example.com"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white/90 border border-[#ead9b8] text-xs focus:outline-none focus:ring-2 focus:ring-[#7b2f18]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#70402c] mb-1">
+                      Password
+                    </label>
+
+                    <input
+                      type="password"
+                      required
+                      value={passwordInput}
+                      onChange={(e) =>
+                        setPasswordInput(e.target.value)
+                      }
+                      placeholder="••••••••"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white/90 border border-[#ead9b8] text-xs focus:outline-none focus:ring-2 focus:ring-[#7b2f18]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="mt-2 w-full py-2.5 rounded-xl bg-[#7b2f18] text-[#fff8e8] font-semibold text-xs shadow-md hover:bg-[#8d3217] transition-all cursor-pointer"
+                  >
+                    {isSignUp
+                      ? "Register Account"
+                      : "Sign In"}
+                  </button>
+                </form>
+
+                <div className="mt-4 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setIsSignUp(!isSignUp)}
+                    className="text-[11px] text-[#8d3217] font-medium hover:underline cursor-pointer"
+                  >
+                    {isSignUp
+                      ? "Already have an account? Sign In"
+                      : "Don't have an account? Create one"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ADD PANTRY MODAL */}
+          {isPantryModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="w-full max-w-[360px] rounded-3xl bg-[#fff8e8] border border-[#ead9b8] p-6 shadow-2xl text-[#5a2111] relative">
+                <button
+                  type="button"
+                  onClick={() => setIsPantryModalOpen(false)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#ead9b8]/50 cursor-pointer"
+                >
+                  ✕
+                </button>
+
+                <h2 className="text-xl font-bold">
+                  Add Ingredient
+                </h2>
+
+                <p className="text-xs text-[#70402c] mt-1 mb-5">
+                  Add something currently in your kitchen.
+                </p>
+
+                <form
+                  onSubmit={addPantryItem}
+                  className="flex flex-col gap-3"
+                >
+                  <input
+                    required
+                    value={newPantryName}
+                    onChange={(e) =>
+                      setNewPantryName(e.target.value)
+                    }
+                    placeholder="Ingredient name"
+                    className="w-full px-3 py-3 rounded-xl bg-white border border-[#ead9b8] text-xs outline-none focus:ring-2 focus:ring-[#7b2f18]"
+                  />
+
+                  <select
+                    value={newPantryCategory}
+                    onChange={(e) =>
+                      setNewPantryCategory(e.target.value)
+                    }
+                    className="w-full px-3 py-3 rounded-xl bg-white border border-[#ead9b8] text-xs outline-none"
+                  >
+                    <option>Vegetables</option>
+                    <option>Fruits</option>
+                    <option>Dairy</option>
+                    <option>Meat</option>
+                    <option>Grains</option>
+                    <option>Other</option>
+                  </select>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={newPantryQuantity}
+                      onChange={(e) =>
+                        setNewPantryQuantity(e.target.value)
+                      }
+                      placeholder="Quantity"
+                      className="w-full px-3 py-3 rounded-xl bg-white border border-[#ead9b8] text-xs outline-none"
+                    />
+
+                    <select
+                      value={newPantryUnit}
+                      onChange={(e) =>
+                        setNewPantryUnit(e.target.value)
+                      }
+                      className="w-full px-3 py-3 rounded-xl bg-white border border-[#ead9b8] text-xs outline-none"
+                    >
+                      <option>pcs</option>
+                      <option>kg</option>
+                      <option>g</option>
+                      <option>L</option>
+                      <option>pack</option>
+                    </select>
+                  </div>
+
+                  <input
+                    type="date"
+                    value={newPantryExpiry}
+                    onChange={(e) =>
+                      setNewPantryExpiry(e.target.value)
+                    }
+                    className="w-full px-3 py-3 rounded-xl bg-white border border-[#ead9b8] text-xs outline-none"
+                  />
+
+                  <button
+                    type="submit"
+                    className="mt-2 w-full py-3 rounded-xl bg-[#7b2f18] text-[#fff8e8] text-xs font-semibold cursor-pointer"
+                  >
+                    Add to Pantry
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ADD SHOPPING MODAL */}
+          {isShoppingModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="w-full max-w-[360px] rounded-3xl bg-[#fff8e8] border border-[#ead9b8] p-6 shadow-2xl text-[#5a2111] relative">
+                <button
+                  type="button"
+                  onClick={() => setIsShoppingModalOpen(false)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#ead9b8]/50 cursor-pointer"
+                >
+                  ✕
+                </button>
+
+                <h2 className="text-xl font-bold">
+                  Add Grocery Item
+                </h2>
+
+                <p className="text-xs text-[#70402c] mt-1 mb-5">
+                  Add something to your shopping list.
+                </p>
+
+                <form
+                  onSubmit={addShoppingItem}
+                  className="flex flex-col gap-3"
+                >
+                  <input
+                    required
+                    value={newShoppingName}
+                    onChange={(e) =>
+                      setNewShoppingName(e.target.value)
+                    }
+                    placeholder="Item name"
+                    className="w-full px-3 py-3 rounded-xl bg-white border border-[#ead9b8] text-xs outline-none focus:ring-2 focus:ring-[#7b2f18]"
+                  />
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={newShoppingQuantity}
+                      onChange={(e) =>
+                        setNewShoppingQuantity(e.target.value)
+                      }
+                      className="w-full px-3 py-3 rounded-xl bg-white border border-[#ead9b8] text-xs outline-none"
+                    />
+
+                    <select
+                      value={newShoppingUnit}
+                      onChange={(e) =>
+                        setNewShoppingUnit(e.target.value)
+                      }
+                      className="w-full px-3 py-3 rounded-xl bg-white border border-[#ead9b8] text-xs outline-none"
+                    >
+                      <option>pcs</option>
+                      <option>kg</option>
+                      <option>g</option>
+                      <option>L</option>
+                      <option>pack</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="mt-2 w-full py-3 rounded-xl bg-[#7b2f18] text-[#fff8e8] text-xs font-semibold cursor-pointer"
+                  >
+                    Add to Shopping List
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </main>
+      )}
+    </div>
+  );
+}
