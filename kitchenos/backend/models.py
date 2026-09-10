@@ -12,3 +12,12 @@ class IngredientModel(Base):
     unit = Column(String, default="pcs")
     expiry_date = Column(String, nullable=True)
     user_id = Column(String, default="default_user")
+
+class MealPlanModel(Base):
+    __tablename__ = "meal_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    day = Column(String, index=True) # e.g., "Monday", "Tuesday"
+    meal_type = Column(String)       # "Breakfast", "Lunch", "Dinner"
+    recipe_name = Column(String)     # Name of the meal or recipe
+    user_id = Column(String, index=True, default="default_user")

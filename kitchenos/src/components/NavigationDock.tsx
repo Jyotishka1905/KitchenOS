@@ -3,7 +3,8 @@ export type Tab =
   | "pantry"
   | "recipes"
   | "planner"
-  | "shopping";
+  | "shopping"
+  | "secondlife";
 
 type NavigationDockProps = {
   activeTab: Tab;
@@ -33,12 +34,17 @@ const navigationItems: {
   {
     key: "planner",
     icon: "📅",
-    label: "Meal Plan",
+    label: "Plan",
   },
   {
     key: "shopping",
     icon: "🛒",
-    label: "Shopping",
+    label: "Shop",
+  },
+  {
+    key: "secondlife",
+    icon: "♻️",
+    label: "Reuse",
   },
 ];
 
@@ -47,7 +53,18 @@ export function NavigationDock({
   setActiveTab,
 }: NavigationDockProps) {
   return (
-    <nav className="kos-bottom-nav">
+    <nav 
+      className="kos-bottom-nav" 
+      style={{ 
+        display: "flex", 
+        justifyContent: "space-around", 
+        alignItems: "center", 
+        padding: "6px 8px",
+        width: "100%",
+        maxWidth: "600px",
+        margin: "0 auto"
+      }}
+    >
       {navigationItems.map((item) => {
         const isActive = activeTab === item.key;
 
@@ -61,17 +78,29 @@ export function NavigationDock({
             }`}
             aria-label={item.label}
             aria-current={isActive ? "page" : undefined}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px 6px",
+              flex: 1,
+            }}
           >
-            <span aria-hidden="true" style={{ fontSize: "1.05rem" }}>
+            <span aria-hidden="true" style={{ fontSize: "1.1rem", lineHeight: "1.2" }}>
               {item.icon}
             </span>
             <span
               style={{
-                fontSize: "0.62rem",
+                fontSize: "0.58rem",
                 fontWeight: 650,
                 letterSpacing: "-0.01em",
                 whiteSpace: "nowrap",
                 color: "#5a2111",
+                marginTop: "2px",
               }}
             >
               {item.label}

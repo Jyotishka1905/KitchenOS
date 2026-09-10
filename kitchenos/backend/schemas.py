@@ -18,3 +18,15 @@ class IngredientResponse(IngredientBase):
 
     class Config:
         from_attributes = True
+
+class MealPlanCreate(BaseModel):
+    day: str
+    meal_type: str
+    recipe_name: str
+    user_id: Optional[str] = "default_user"
+
+class MealPlanResponse(MealPlanCreate):
+    id: int
+
+    class Config:
+        from_attributes = True

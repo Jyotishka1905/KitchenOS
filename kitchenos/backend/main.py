@@ -1,7 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime
 import redis
 import json
 
@@ -10,7 +11,6 @@ import models
 import schemas
 from vision_service import process_grocery_image
 
-# Initialize database tables
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -19,7 +19,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for Vite frontend communication
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,7 +27,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Connect to local Redis instance with error handling
 try:
     cache = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
     cache.ping()
@@ -81,7 +79,7 @@ def get_ingredients(db: Session = Depends(get_db)):
         except Exception:
             pass
             
-    return ingredients
+    return serialized
 
 @app.post("/api/ingredients", response_model=schemas.IngredientResponse)
 def add_ingredient(item: schemas.IngredientCreate, db: Session = Depends(get_db)):
@@ -108,3 +106,129 @@ async def scan_grocery_haul(file: UploadFile = File(...)):
         "items_found": len(detected_items),
         "ingredients": detected_items
     }
+
+@app.get("/api/meal-plans")
+def get_meal_plans(user_id: str = "default_user", db: Session = Depends(get_db)):
+    return db.query(models.MealPlanModel).filter(models.MealPlanModel.user_id == user_id).all()
+
+@app.post("/api/meal-plans")
+def save_meal_plan(plan: schemas.MealPlanCreate, db: Session = Depends(get_db)):
+    db_plan = models.MealPlanModel(**plan.model_dump())
+    db.add(db_plan)
+    db.commit()
+    db.refresh(db_plan)
+    return db_plan
+
+@app.get("/api/recipes/search")
+def search_expiry_recipes(item: str, spices: str = "General", cuisine: str = "Indian", db: Session = Depends(get_db)):
+    query_str = f"best {cuisine} recipe using {item} with {spices} spices"
+    google_search_url = f"https://www.google.com/search?q={query_str.replace(' ', '+')}"
+    
+    return {
+        "expiring_item": item,
+        "selected_spices": spices,
+        "selected_cuisine": cuisine,
+        "google_search_url": google_search_url
+    }
+
+@app.get("/api/shopping/smart-list")
+def generate_smart_shopping_list(db: Session = Depends(get_db)):
+    ingredients = db.query(models.IngredientModel).all()
+    today = datetime.now().date()
+    
+    expiring_items = []
+    pantry_names = [i.name.lower() for i in ingredients]
+    
+    for item in ingredients:
+        if item.expiry_date:
+            try:
+                exp_date = datetime.strptime(item.expiry_date, "%Y-%m-%d").date()
+                if (exp_date - today).days <= 3:
+                    expiring_items.append(item.name)
+            except Exception:
+                pass
+                
+    # Generate needed items dynamically based on expiring products without hardcoding standard templates or dishes
+    potential_needs = []
+    for exp_item in expiring_items:
+        # Example pairing logic per expiring item
+        if "milk" in exp_item.lower():
+            potential_needs.extend(["Rice", "Sugar"])
+        elif "tomato" in exp_item.lower():
+            potential_needs.extend(["Onion", "Coriander"])
+        else:
+            potential_needs.extend(["Cooking Oil", "Fresh Herbs"])
+            
+    # Filter out anything already available in the pantry
+    shopping_list_items = []
+    for need in set(potential_needs):
+        if need.lower() not in pantry_names:
+            encoded_query = need.replace(" ", "%20")
+            buy_link = f"https://www.blinkit.com/s/?q={encoded_query}"
+            
+            shopping_list_items.append({
+                "id": len(shopping_list_items) + 1,
+                "name": need,
+                "category": "Groceries",
+                "quantity": 1,
+                "unit": "pack",
+                "buy_link": buy_link,
+                "store": "Blinkit"
+            })
+            
+    return {
+        "expiring_audit": expiring_items,
+        "shopping_list": shopping_list_items
+    }
+
+@app.get("/api/second-life/remedies")
+def get_second_life_remedies(db: Session = Depends(get_db)):
+    ingredients = db.query(models.IngredientModel).all()
+    today = datetime.now().date()
+    
+    dynamic_remedies = []
+    remedy_id = 1
+    
+    for item in ingredients:
+        is_expired = False
+        is_expiring_soon = False
+        
+        if item.expiry_date:
+            try:
+                exp_date = datetime.strptime(item.expiry_date, "%Y-%m-%d").date()
+                delta = (exp_date - today).days
+                if delta < 0:
+                    is_expired = True
+                elif delta <= 3:
+                    is_expiring_soon = True
+            except Exception:
+                pass
+                
+        if is_expired or is_expiring_soon or item.category in ["Vegetables", "Fruits"]:
+            status_label = "Expired" if is_expired else ("Expiring Soon" if is_expiring_soon else "Pantry Stock")
+            
+            dynamic_remedies.append({
+                "id": remedy_id,
+                "category": f"Upcycle Guide ({status_label})",
+                "title": f"Second Life Guide for {item.name}",
+                "description": f"Your {item.name} is {status_label.lower()}. Give it a second life through composting or natural reuse.",
+                "icon": "♻️",
+                "steps": [
+                    f"Assess the condition of {item.name}.",
+                    "Chop and mix into composting soil bins if past consumption stage.",
+                    "Alternatively, use citrus or peel varieties for natural surface cleaning infusions."
+                ]
+            })
+            remedy_id += 1
+
+    if not dynamic_remedies:
+        dynamic_remedies.append({
+            "id": 99,
+            "category": "General Hub",
+            "title": "Pantry Fresh",
+            "description": "No items requiring immediate second-life intervention.",
+            "icon": "✨",
+            "steps": ["Monitor expiration dates as you add new stock."]
+        })
+
+    return {"remedies": dynamic_remedies}
