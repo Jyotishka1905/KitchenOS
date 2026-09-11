@@ -27,15 +27,6 @@ type MealPlan = {
   user_id?: string;
 };
 
-type Remedy = {
-  id: number;
-  category: string;
-  title: string;
-  description: string;
-  icon: string;
-  steps: string[];
-};
-
 type ShoppingItem = {
   id: number;
   name: string;
@@ -127,6 +118,7 @@ export default function App() {
   const [emailInput, setEmailInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [confirmPasswordInput, setConfirmPasswordInput] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
 
   const [authError, setAuthError] = useState("");
 
@@ -151,7 +143,10 @@ export default function App() {
   const [selectedCuisinePref, setSelectedCuisinePref] = useState<string>("Indian");
   const [recipeDashboardData, setRecipeDashboardData] = useState<any | null>(null);
 
-  const [remedies, setRemedies] = useState<Remedy[]>([]);
+  // Second Life Upcycle States
+  const [selectedUpcycleItem, setSelectedUpcycleItem] = useState<string>("");
+  const [upcycleDashboardData, setUpcycleDashboardData] = useState<any | null>(null);
+
   const [smartShopping, setSmartShopping] = useState<SmartShoppingData | null>(null);
 
   useEffect(() => {
@@ -197,36 +192,81 @@ export default function App() {
       });
   }, [user]);
 
+  // Play browser audio beep alarm
+  const playBrowserAlarm = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // Pitch
+      gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.3);
+    } catch (e) {
+      console.error("Audio blocked until interaction", e);
+    }
+  };
+
+  // Check for expiring item alerts on load and trigger audio/browser notifications
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
+    fetch("http://localhost:8001/api/alerts/expiring")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.has_alerts && data.expiring_items.length > 0) {
+          const itemNames = data.expiring_items.map((i: any) => i.name).join(", ");
+          
+          playBrowserAlarm();
+          showToast(`🚨 ALARM: Expiring items detected: ${itemNames}`, "error");
+
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("🚨 KitchenOS Expiry Alarm", {
+              body: `The following items are expiring soon: ${itemNames}. Check your pantry!`,
+              icon: "🥕"
+            });
+          }
+        }
+      })
+      .catch((err) => console.error("Failed to fetch expiry alerts:", err));
+  }, []);
+
   // Fetch contextual tab data when active tab changes
   useEffect(() => {
-    if (activeTab === "secondlife") {
-      fetchRemedies();
-    } else if (activeTab === "shopping") {
+    if (activeTab === "shopping") {
       fetchSmartShoppingList();
     }
   }, [activeTab]);
 
   const fetchRecipeSearch = async (itemName: string, spices: string, cuisine: string) => {
     try {
-      const res = await fetch(`http://localhost:8001/api/recipes/search?item=${encodeURIComponent(itemName)}&spices=${encodeURIComponent(spices)}&cuisine=${encodeURIComponent(cuisine)}`);
-      if (!res.ok) throw new Error("Failed to fetch recipe search");
+      const res = await fetch(`http://localhost:8001/api/recipes/generate?item=${encodeURIComponent(itemName)}&spices=${encodeURIComponent(spices)}&cuisine=${encodeURIComponent(cuisine)}`);
+      if (!res.ok) throw new Error("Failed to generate AI recipe");
       const data = await res.json();
       setRecipeDashboardData(data);
     } catch (err) {
       console.error(err);
-      showToast("Could not load recipe search link.", "error");
+      showToast("Could not generate AI recipe.", "error");
     }
   };
 
-  const fetchRemedies = async () => {
+  const fetchUpcycleGuide = async (itemName: string, category: string) => {
     try {
-      const res = await fetch("http://localhost:8001/api/second-life/remedies");
-      if (!res.ok) throw new Error("Failed to fetch second life remedies");
+      const res = await fetch(`http://localhost:8001/api/second-life/generate?item=${encodeURIComponent(itemName)}&category=${encodeURIComponent(category)}`);
+      if (!res.ok) throw new Error("Failed to generate upcycle guide");
       const data = await res.json();
-      setRemedies(data.remedies || []);
+      setUpcycleDashboardData(data);
     } catch (err) {
       console.error(err);
-      showToast("Could not load dynamic second life guides.", "error");
+      showToast("Could not generate AI upcycle guide.", "error");
     }
   };
 
@@ -240,6 +280,21 @@ export default function App() {
       console.error(err);
       showToast("Could not generate smart shopping list.", "error");
     }
+  };
+
+  // =========================================================
+  // EXPORT & SHARE HELPERS
+  // =========================================================
+
+  const handleCopyText = (text: string, label: string) => {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast(`${label} copied to clipboard!`, "success"))
+      .catch(() => showToast("Failed to copy to clipboard.", "error"));
+  };
+
+  const handleWhatsAppShare = (text: string) => {
+    const encoded = encodeURIComponent(text);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, "_blank");
   };
 
   const [search, setSearch] = useState("");
@@ -338,6 +393,7 @@ export default function App() {
     setEmailInput("");
     setPasswordInput("");
     setConfirmPasswordInput("");
+    setPhoneInput("");
     setAuthError("");
     setShowProfileDashboard(false);
     setIsAuthOpen(true);
@@ -348,13 +404,14 @@ export default function App() {
     setAuthError("");
   };
 
-  const handleAuthSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleAuthSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setAuthError("");
 
     const name = nameInput.trim();
     const email = emailInput.trim().toLowerCase();
     const password = passwordInput;
+    const phone = phoneInput.trim();
 
     if (!email || !password) {
       setAuthError("Please fill out all required fields.");
@@ -369,16 +426,42 @@ export default function App() {
         return;
       }
 
-      const account: StoredAccount = { name, email, password };
-      const accountUser: User = { name, email };
+      try {
+        const response = await fetch("http://localhost:8001/api/register", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name,
+            email,
+            password,
+            phone_number: phone || null,
+          }),
+        });
 
-      localStorage.setItem("kitchenos_account", JSON.stringify(account));
-      localStorage.setItem("kitchenos_user", JSON.stringify(accountUser));
-      setUser(accountUser);
-      setIsAuthOpen(false);
-      setActiveTab("home");
-      setInApp(true);
-      showToast(`Welcome, ${name}!`, "success");
+        const data = await response.json();
+        if (!response.ok) {
+          setAuthError(data.message || "Registration failed");
+          showToast(data.message || "Registration failed", "error");
+          return;
+        }
+
+        const account: StoredAccount = { name, email, password };
+        const accountUser: User = { name, email };
+
+        localStorage.setItem("kitchenos_account", JSON.stringify(account));
+        localStorage.setItem("kitchenos_user", JSON.stringify(accountUser));
+        setUser(accountUser);
+        setIsAuthOpen(false);
+        setActiveTab("home");
+        setInApp(true);
+        showToast(`Welcome, ${name}!`, "success");
+      } catch (err) {
+        console.error("Registration error:", err);
+        setAuthError("Failed to connect to server");
+        showToast("Failed to connect to server", "error");
+      }
       return;
     }
 
@@ -615,6 +698,21 @@ export default function App() {
 
       <div className="kos-dashboard-divider" />
 
+      {expiringIngredients.length > 0 && (
+        <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "10px", padding: "16px", marginBottom: "20px", background: "rgba(255, 100, 100, 0.2)", border: "1px solid rgba(255, 100, 100, 0.4)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "20px" }}>🚨</span>
+            <h3 style={{ margin: 0, fontSize: "16px" }}>Expiry Alert</h3>
+          </div>
+          <p style={{ margin: 0, fontSize: "13px" }}>
+            You have <strong>{expiringIngredients.length}</strong> ingredient(s) expiring soon: {expiringIngredients.map(i => i.name).join(", ")}.
+          </p>
+          <button type="button" onClick={() => setActiveTab("recipes")} className="kos-modal-submit" style={{ padding: "6px 12px", width: "fit-content", margin: 0, fontSize: "12px" }}>
+            Generate Recipe →
+          </button>
+        </div>
+      )}
+
       <section className="kos-use-soon">
         <p className="kos-use-soon-title">⚠️ USE SOON</p>
         <p className="kos-expiring">{expiringIngredients.length} ingredients expiring</p>
@@ -718,7 +816,7 @@ export default function App() {
   );
 
   // =========================================================
-  // RECIPES TAB (EXPIRING SOON SELECTION & SPICE/CUISINE PREFERENCES)
+  // RECIPES TAB
   // =========================================================
 
   const renderRecipes = () => {
@@ -727,12 +825,11 @@ export default function App() {
         <section className="kos-page-heading">
           <div>
             <span className="kos-page-icon">🍳</span>
-            <h1>Recipe & Expiry Dashboard</h1>
-            <p>Select an expiring ingredient and your preferred spices/cuisine to search recipes instantly.</p>
+            <h1>AI Recipe Generator</h1>
+            <p>Select an expiring ingredient and your preferred spices/cuisine to generate instant recipes.</p>
           </div>
         </section>
 
-        {/* Expiring Soon Items Selection */}
         <section className="kos-ingredient-section" style={{ margin: "15px 0" }}>
           <p className="kos-small-heading">SELECT EXPIRING SOON PRODUCT</p>
           {expiringIngredients.length === 0 ? (
@@ -759,7 +856,6 @@ export default function App() {
           )}
         </section>
 
-        {/* Spice Preference Selector */}
         <section className="kos-category-section" style={{ margin: "15px 0" }}>
           <p className="kos-small-heading">SPICE PREFERENCE</p>
           <div className="kos-category-scroll">
@@ -781,7 +877,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* Cuisine Preference Selector */}
         <section className="kos-category-section" style={{ margin: "15px 0" }}>
           <p className="kos-small-heading">CUISINE PREFERENCE</p>
           <div className="kos-category-scroll">
@@ -803,35 +898,16 @@ export default function App() {
           </div>
         </section>
 
-        {/* Dashboard Result View */}
         {selectedExpiringItem && (
           <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "14px", padding: "20px", marginTop: "20px", background: "rgba(255,255,255,0.15)" }}>
-            <h3 style={{ margin: 0, fontSize: "18px" }}>Recipe Search Hub for: {selectedExpiringItem}</h3>
-            <p style={{ margin: 0, fontSize: "13px", opacity: 0.9 }}>
-              Preferences: <strong>{selectedCuisinePref}</strong> cuisine with <strong>{selectedSpicePref}</strong> spices.
+            <h3 style={{ margin: 0, fontSize: "18px" }}>AI Recipe for: {selectedExpiringItem}</h3>
+            <p style={{ margin: 0, fontSize: "12px", opacity: 0.85 }}>
+              Cuisine: <strong>{selectedCuisinePref}</strong> | Spices: <strong>{selectedSpicePref}</strong>
             </p>
-            {recipeDashboardData && recipeDashboardData.google_search_url && (
-              <a
-                href={recipeDashboardData.google_search_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  background: "#5a2111",
-                  color: "#fff",
-                  padding: "10px 16px",
-                  borderRadius: "8px",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  width: "fit-content",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
-                }}
-              >
-                🔍 Open Google Recipe Search →
-              </a>
+            {recipeDashboardData && recipeDashboardData.recipe_text && (
+              <div style={{ background: "rgba(0,0,0,0.2)", padding: "14px", borderRadius: "8px", whiteSpace: "pre-line", fontSize: "13px", lineHeight: "1.5" }}>
+                {recipeDashboardData.recipe_text}
+              </div>
             )}
           </div>
         )}
@@ -853,6 +929,34 @@ export default function App() {
             <span className="kos-page-icon">📅</span>
             <h1>Meal Plan</h1>
             <p>Organize your weekly kitchen schedule day-wise.</p>
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button
+              type="button"
+              className="kos-add-button"
+              onClick={() => {
+                const text = `📅 KitchenOS Meal Plan (${selectedDay}):\n` + 
+                  currentDayMeals.map(m => `- ${m.meal_type}: ${m.recipe_name}`).join("\n");
+                handleCopyText(text, `Meal plan for ${selectedDay}`);
+              }}
+              title="Copy Meal Plan"
+              style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
+            >
+              📋
+            </button>
+            <button
+              type="button"
+              className="kos-add-button"
+              onClick={() => {
+                const text = `📅 KitchenOS Meal Plan (${selectedDay}):\n` + 
+                  currentDayMeals.map(m => `- ${m.meal_type}: ${m.recipe_name}`).join("\n");
+                handleWhatsAppShare(text);
+              }}
+              title="Share via WhatsApp"
+              style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
+            >
+              💬
+            </button>
           </div>
         </section>
 
@@ -918,7 +1022,7 @@ export default function App() {
   };
 
   // =========================================================
-  // SHOPPING TAB (SHOWS ONLY MISSING ITEMS, EXCLUDES PANTRY STOCK)
+  // SHOPPING TAB
   // =========================================================
 
   const renderShopping = () => {
@@ -930,9 +1034,37 @@ export default function App() {
             <h1>Smart Shopping List</h1>
             <p>Missing items needed for expiring ingredients. Items already available in your pantry are excluded.</p>
           </div>
-          <button type="button" className="kos-add-button" onClick={fetchSmartShoppingList} title="Refresh List" style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>
-            🔄
-          </button>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button
+              type="button"
+              className="kos-add-button"
+              onClick={() => {
+                const text = `🛒 KitchenOS Smart Shopping List:\n` + 
+                  (smartShopping?.shopping_list || []).map(i => `- ${i.name} (${i.quantity} ${i.unit})`).join("\n");
+                handleCopyText(text, "Shopping list");
+              }}
+              title="Copy Shopping List"
+              style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
+            >
+              📋
+            </button>
+            <button
+              type="button"
+              className="kos-add-button"
+              onClick={() => {
+                const text = `🛒 KitchenOS Smart Shopping List:\n` + 
+                  (smartShopping?.shopping_list || []).map(i => `- ${i.name} (${i.quantity} ${i.unit})`).join("\n");
+                handleWhatsAppShare(text);
+              }}
+              title="Share via WhatsApp"
+              style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
+            >
+              💬
+            </button>
+            <button type="button" className="kos-add-button" onClick={fetchSmartShoppingList} title="Refresh List" style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>
+              🔄
+            </button>
+          </div>
         </section>
 
         {smartShopping && smartShopping.proposed_dish && (
@@ -1009,50 +1141,47 @@ export default function App() {
       <section className="kos-page-heading">
         <div>
           <span className="kos-page-icon">♻️</span>
-          <h1>Second Life Hub</h1>
-          <p>Live audit transforming expired and near-expiry pantry items into useful solutions.</p>
+          <h1>AI Second Life Hub</h1>
+          <p>Select any pantry item to generate custom upcycling, cleaning, or composting guides.</p>
         </div>
-        <button type="button" className="kos-add-button" onClick={fetchRemedies} title="Refresh Audit" style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>
-          🔄
-        </button>
       </section>
 
-      <section className="kos-ingredient-section" style={{ marginTop: "20px" }}>
-        <div className="kos-list-heading">
-          <p className="kos-small-heading">UPCYCLE AUDIT</p>
-          <span>{remedies.length} items analyzed</span>
-        </div>
-
-        {remedies.length === 0 ? (
-          <div className="kos-empty-state">
+      <section className="kos-ingredient-section" style={{ margin: "15px 0" }}>
+        <p className="kos-small-heading">SELECT PANTRY ITEM FOR UPCYCLE GUIDE</p>
+        {ingredients.length === 0 ? (
+          <div className="kos-empty-state" style={{ padding: "20px" }}>
             <span>🌿</span>
-            <h3>Audit empty</h3>
-            <p>No items to review.</p>
+            <p>No items in your pantry. Add some items first!</p>
           </div>
         ) : (
-          <div className="kos-ingredient-list">
-            {remedies.map((remedy) => (
-              <div className="kos-ingredient-card" key={remedy.id} style={{ flexDirection: "column", alignItems: "flex-start", gap: "10px", padding: "16px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
-                  <div className="kos-ingredient-icon" style={{ fontSize: "28px" }}>{remedy.icon}</div>
-                  <div className="kos-ingredient-info" style={{ flex: 1 }}>
-                    <h3 style={{ margin: 0, fontSize: "16px" }}>{remedy.title}</h3>
-                    <span style={{ fontSize: "10px", background: "rgba(255,255,255,0.15)", padding: "2px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                      {remedy.category}
-                    </span>
-                  </div>
-                </div>
-                <p style={{ fontSize: "13px", margin: "0", opacity: 0.9 }}>{remedy.description}</p>
-                <ol style={{ fontSize: "12px", paddingLeft: "16px", margin: "4px 0 0", opacity: 0.85, display: "flex", flexDirection: "column", gap: "4px" }}>
-                  {remedy.steps.map((step, i) => (
-                    <li key={i}>{step}</li>
-                  ))}
-                </ol>
-              </div>
+          <div className="kos-category-scroll">
+            {ingredients.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                onClick={() => {
+                  setSelectedUpcycleItem(item.name);
+                  fetchUpcycleGuide(item.name, item.category);
+                }}
+                className={`kos-category-button ${selectedUpcycleItem === item.name ? "is-selected" : ""}`}
+              >
+                {item.icon} {item.name}
+              </button>
             ))}
           </div>
         )}
       </section>
+
+      {selectedUpcycleItem && (
+        <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "14px", padding: "20px", marginTop: "20px", background: "rgba(255,255,255,0.15)" }}>
+          <h3 style={{ margin: 0, fontSize: "18px" }}>AI Upcycle Guide for: {selectedUpcycleItem}</h3>
+          {upcycleDashboardData && upcycleDashboardData.guide_text && (
+            <div style={{ background: "rgba(0,0,0,0.2)", padding: "14px", borderRadius: "8px", whiteSpace: "pre-line", fontSize: "13px", lineHeight: "1.5" }}>
+              {upcycleDashboardData.guide_text}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -1246,10 +1375,17 @@ export default function App() {
                   </label>
 
                   {authMode === "signup" && (
-                    <label className="kos-modal-label">
-                      Confirm Password
-                      <input type="password" placeholder="Confirm Password" value={confirmPasswordInput} onChange={(e) => setConfirmPasswordInput(e.target.value)} />
-                    </label>
+                    <>
+                      <label className="kos-modal-label">
+                        Confirm Password
+                        <input type="password" placeholder="Confirm Password" value={confirmPasswordInput} onChange={(e) => setConfirmPasswordInput(e.target.value)} />
+                      </label>
+
+                      <label className="kos-modal-label">
+                        Phone Number (optional)
+                        <input type="tel" placeholder="+919876543210" value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} />
+                      </label>
+                    </>
                   )}
 
                   {authError && <div className="kos-auth-error">{authError}</div>}

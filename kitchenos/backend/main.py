@@ -1,8 +1,11 @@
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
 import redis
 import json
 
@@ -10,6 +13,9 @@ from database import engine, get_db
 import models
 import schemas
 from vision_service import process_grocery_image
+from alert_service import dispatch_expiry_alert
+from recipe_service import generate_recipe
+from upcycle_service import generate_upcycle_remedy
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -33,6 +39,49 @@ try:
 except Exception:
     cache = None
 
+# Background Scheduler for Automated Expiry Alarms
+scheduler = BackgroundScheduler()
+
+def check_expiring_pantry_alarms():
+    try:
+        db = next(get_db())
+        ingredients = db.query(models.IngredientModel).all()
+        today = datetime.now().date()
+        expiring_soon = []
+
+        for item in ingredients:
+            if item.expiry_date:
+                try:
+                    exp_date = datetime.strptime(item.expiry_date, "%Y-%m-%d").date()
+                    days_left = (exp_date - today).days
+                    if days_left <= 3:
+                        expiring_soon.append({
+                            "name": item.name,
+                            "quantity": item.quantity,
+                            "unit": item.unit,
+                            "days_left": days_left
+                        })
+                except Exception:
+                    pass
+
+        if expiring_soon:
+            dispatch_expiry_alert(expiring_soon)
+            
+        db.close()
+    except Exception as e:
+        print(f"Alarm scheduler error: {e}")
+
+@app.on_event("startup")
+def start_scheduler():
+    if not scheduler.running:
+        scheduler.add_job(check_expiring_pantry_alarms, 'interval', hours=12)
+        scheduler.start()
+
+@app.on_event("shutdown")
+def shutdown_scheduler():
+    if scheduler.running:
+        scheduler.shutdown()
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to KitchenOS API", "docs": "/docs"}
@@ -47,6 +96,24 @@ def health_check():
         except Exception:
             pass
     return {"status": "healthy", "database": "connected", "cache": cache_status}
+
+@app.get("/api/test-sms-alarm")
+def test_sms_alarm():
+    check_expiring_pantry_alarms()
+    return {"status": "triggered", "message": "Expiry alarm check and push alert dispatch executed manually."}
+
+@app.post("/api/register")
+def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    db_user = models.UserModel(
+        name=user.name,
+        email=user.email,
+        password=user.password,
+        phone_number=user.phone_number
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return {"status": "success", "message": "User registered successfully", "user_id": db_user.id}
 
 @app.get("/api/ingredients", response_model=List[schemas.IngredientResponse])
 def get_ingredients(db: Session = Depends(get_db)):
@@ -148,10 +215,8 @@ def generate_smart_shopping_list(db: Session = Depends(get_db)):
             except Exception:
                 pass
                 
-    # Generate needed items dynamically based on expiring products without hardcoding standard templates or dishes
     potential_needs = []
     for exp_item in expiring_items:
-        # Example pairing logic per expiring item
         if "milk" in exp_item.lower():
             potential_needs.extend(["Rice", "Sugar"])
         elif "tomato" in exp_item.lower():
@@ -159,7 +224,6 @@ def generate_smart_shopping_list(db: Session = Depends(get_db)):
         else:
             potential_needs.extend(["Cooking Oil", "Fresh Herbs"])
             
-    # Filter out anything already available in the pantry
     shopping_list_items = []
     for need in set(potential_needs):
         if need.lower() not in pantry_names:
@@ -232,3 +296,36 @@ def get_second_life_remedies(db: Session = Depends(get_db)):
         })
 
     return {"remedies": dynamic_remedies}
+
+@app.get("/api/alerts/expiring")
+def get_expiring_alerts(db: Session = Depends(get_db)):
+    ingredients = db.query(models.IngredientModel).all()
+    today = datetime.now().date()
+    expiring_soon = []
+
+    for item in ingredients:
+        if item.expiry_date:
+            try:
+                exp_date = datetime.strptime(item.expiry_date, "%Y-%m-%d").date()
+                if (exp_date - today).days <= 3:
+                    expiring_soon.append({
+                        "name": item.name,
+                        "expiry_date": item.expiry_date,
+                        "days_left": (exp_date - today).days
+                    })
+            except Exception:
+                pass
+
+    return {
+        "has_alerts": len(expiring_soon) > 0,
+        "count": len(expiring_soon),
+        "expiring_items": expiring_soon
+    }
+
+@app.get("/api/recipes/generate")
+def api_generate_recipe(item: str, spices: str = "General", cuisine: str = "Indian"):
+    return generate_recipe(item, spices, cuisine)
+
+@app.get("/api/second-life/generate")
+def api_generate_upcycle(item: str, category: str = "Produce"):
+    return generate_upcycle_remedy(item, category)

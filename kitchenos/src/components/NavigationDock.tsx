@@ -18,32 +18,32 @@ const navigationItems: {
 }[] = [
   {
     key: "home",
-    icon: "🏠",
+    icon: "",
     label: "Home",
   },
   {
     key: "pantry",
-    icon: "🥕",
+    icon: "",
     label: "Pantry",
   },
   {
     key: "recipes",
-    icon: "🍳",
+    icon: "",
     label: "Recipes",
   },
   {
     key: "planner",
-    icon: "📅",
+    icon: "",
     label: "Plan",
   },
   {
     key: "shopping",
-    icon: "🛒",
+    icon: "",
     label: "Shop",
   },
   {
     key: "secondlife",
-    icon: "♻️",
+    icon: "",
     label: "Reuse",
   },
 ];

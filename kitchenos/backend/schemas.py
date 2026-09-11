@@ -30,3 +30,18 @@ class MealPlanResponse(MealPlanCreate):
 
     class Config:
         from_attributes = True
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    password: str
+    phone_number: Optional[str] = None
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    phone_number: Optional[str] = None
+
+    class Config:
+        from_attributes = True

@@ -12,6 +12,7 @@ class IngredientModel(Base):
     unit = Column(String, default="pcs")
     expiry_date = Column(String, nullable=True)
     user_id = Column(String, default="default_user")
+    household_id = Column(String, default="family_household", index=True)
 
 class MealPlanModel(Base):
     __tablename__ = "meal_plans"
@@ -21,3 +22,13 @@ class MealPlanModel(Base):
     meal_type = Column(String)       # "Breakfast", "Lunch", "Dinner"
     recipe_name = Column(String)     # Name of the meal or recipe
     user_id = Column(String, index=True, default="default_user")
+    household_id = Column(String, default="family_household", index=True)
+
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    email = Column(String, unique=True, index=True)
+    password = Column(String)
+    phone_number = Column(String, nullable=True)
