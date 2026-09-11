@@ -43,6 +43,15 @@ type SmartShoppingData = {
   shopping_list: ShoppingItem[];
 };
 
+type SecondLifeRemedy = {
+  id: number;
+  category: string;
+  title: string;
+  description: string;
+  icon: string;
+  steps: string[];
+};
+
 type User = {
   name: string;
   email: string;
@@ -143,9 +152,9 @@ export default function App() {
   const [selectedCuisinePref, setSelectedCuisinePref] = useState<string>("Indian");
   const [recipeDashboardData, setRecipeDashboardData] = useState<any | null>(null);
 
-  // Second Life Upcycle States
-  const [selectedUpcycleItem, setSelectedUpcycleItem] = useState<string>("");
-  const [upcycleDashboardData, setUpcycleDashboardData] = useState<any | null>(null);
+  // Second Life Remedies State
+  const [secondLifeRemedies, setSecondLifeRemedies] = useState<SecondLifeRemedy[]>([]);
+  const [expiredCount, setExpiredCount] = useState<number>(0);
 
   const [smartShopping, setSmartShopping] = useState<SmartShoppingData | null>(null);
 
@@ -237,12 +246,17 @@ export default function App() {
         }
       })
       .catch((err) => console.error("Failed to fetch expiry alerts:", err));
+
+    // Also fetch initial second life remedies count on mount to populate the blinking badge if items exist
+    fetchSecondLifeRemedies();
   }, []);
 
   // Fetch contextual tab data when active tab changes
   useEffect(() => {
     if (activeTab === "shopping") {
       fetchSmartShoppingList();
+    } else if (activeTab === "secondlife") {
+      fetchSecondLifeRemedies();
     }
   }, [activeTab]);
 
@@ -258,15 +272,33 @@ export default function App() {
     }
   };
 
-  const fetchUpcycleGuide = async (itemName: string, category: string) => {
+  const fetchSecondLifeRemedies = async () => {
     try {
-      const res = await fetch(`http://localhost:8001/api/second-life/generate?item=${encodeURIComponent(itemName)}&category=${encodeURIComponent(category)}`);
-      if (!res.ok) throw new Error("Failed to generate upcycle guide");
+      const res = await fetch("http://localhost:8001/api/second-life/remedies");
+      if (!res.ok) throw new Error("Failed to load second life remedies");
       const data = await res.json();
-      setUpcycleDashboardData(data);
+      const remedies = data.remedies || [];
+      const expiredItemsCount = remedies.filter((r: any) => r.category.includes("Expired")).length;
+      
+      setSecondLifeRemedies(remedies);
+      setExpiredCount(expiredItemsCount);
+      
+      const pantryRes = await fetch("http://localhost:8001/api/ingredients");
+      if (pantryRes.ok) {
+        const pantryData = await pantryRes.json();
+        setIngredients(pantryData.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          icon: item.icon || "📦",
+          category: item.category,
+          quantity: item.quantity,
+          unit: item.unit,
+          expiryDate: item.expiry_date,
+        })));
+      }
     } catch (err) {
       console.error(err);
-      showToast("Could not generate AI upcycle guide.", "error");
+      showToast("Could not load second life remedies.", "error");
     }
   };
 
@@ -698,18 +730,28 @@ export default function App() {
 
       <div className="kos-dashboard-divider" />
 
-      {expiringIngredients.length > 0 && (
-        <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "10px", padding: "16px", marginBottom: "20px", background: "rgba(255, 100, 100, 0.2)", border: "1px solid rgba(255, 100, 100, 0.4)" }}>
+      {expiringIngredients.length > 0 ? (
+        <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "10px", padding: "16px", marginBottom: "20px", background: "rgba(255, 100, 100, 0.25)", border: "1px solid rgba(255, 100, 100, 0.5)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ fontSize: "20px" }}>🚨</span>
-            <h3 style={{ margin: 0, fontSize: "16px" }}>Expiry Alert</h3>
+            <h3 style={{ margin: 0, fontSize: "16px", color: "#fff" }}>Expiry Alert</h3>
           </div>
-          <p style={{ margin: 0, fontSize: "13px" }}>
+          <p style={{ margin: 0, fontSize: "13px", color: "#fff" }}>
             You have <strong>{expiringIngredients.length}</strong> ingredient(s) expiring soon: {expiringIngredients.map(i => i.name).join(", ")}.
           </p>
           <button type="button" onClick={() => setActiveTab("recipes")} className="kos-modal-submit" style={{ padding: "6px 12px", width: "fit-content", margin: 0, fontSize: "12px" }}>
-            Generate Recipe →
+            Generate AI Recipe →
           </button>
+        </div>
+      ) : (
+        <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "8px", padding: "14px", marginBottom: "20px", background: "rgba(255, 255, 255, 0.1)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "18px" }}>✨</span>
+            <h3 style={{ margin: 0, fontSize: "15px", color: "#fff" }}>All Pantry Items Fresh</h3>
+          </div>
+          <p style={{ margin: 0, fontSize: "12px", opacity: 0.9, color: "#fff" }}>
+            No items are expiring within the next 3 days. Your kitchen stock is optimal!
+          </p>
         </div>
       )}
 
@@ -1142,46 +1184,52 @@ export default function App() {
         <div>
           <span className="kos-page-icon">♻️</span>
           <h1>AI Second Life Hub</h1>
-          <p>Select any pantry item to generate custom upcycling, cleaning, or composting guides.</p>
+          <p>Expired items automatically migrate here with customized upcycling, cleaning, and composting guides.</p>
         </div>
       </section>
 
-      <section className="kos-ingredient-section" style={{ margin: "15px 0" }}>
-        <p className="kos-small-heading">SELECT PANTRY ITEM FOR UPCYCLE GUIDE</p>
-        {ingredients.length === 0 ? (
-          <div className="kos-empty-state" style={{ padding: "20px" }}>
+      <section className="kos-ingredient-section" style={{ marginTop: "20px" }}>
+        <div className="kos-list-heading">
+          <p className="kos-small-heading">EXPIRED & REUSED ITEMS</p>
+          <span>{secondLifeRemedies.length} items archived</span>
+        </div>
+
+        {secondLifeRemedies.length === 0 ? (
+          <div className="kos-empty-state">
             <span>🌿</span>
-            <p>No items in your pantry. Add some items first!</p>
+            <h3>No expired items found</h3>
+            <p>All your pantry items are fresh! Items past their expiry date will appear here automatically.</p>
           </div>
         ) : (
-          <div className="kos-category-scroll">
-            {ingredients.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                onClick={() => {
-                  setSelectedUpcycleItem(item.name);
-                  fetchUpcycleGuide(item.name, item.category);
-                }}
-                className={`kos-category-button ${selectedUpcycleItem === item.name ? "is-selected" : ""}`}
-              >
-                {item.icon} {item.name}
-              </button>
+          <div className="kos-ingredient-list">
+            {secondLifeRemedies.map((remedy) => (
+              <div className="kos-ingredient-card" key={remedy.id} style={{ flexDirection: "column", gap: "10px", padding: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%" }}>
+                  <div className="kos-ingredient-icon" style={{ fontSize: "24px" }}>{remedy.icon}</div>
+                  <div className="kos-ingredient-info" style={{ flex: 1 }}>
+                    <h3 style={{ margin: 0, fontSize: "16px" }}>{remedy.title}</h3>
+                    <p style={{ margin: "2px 0 0", fontSize: "12px", opacity: 0.85 }}>
+                      {remedy.description}
+                    </p>
+                  </div>
+                  <span style={{ background: "rgba(255,255,255,0.2)", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600 }}>
+                    {remedy.category}
+                  </span>
+                </div>
+
+                <div style={{ background: "rgba(0,0,0,0.2)", padding: "12px", borderRadius: "8px", fontSize: "12px", lineHeight: "1.5", whiteSpace: "pre-line", width: "100%" }}>
+                  <strong>Action Steps:</strong>
+                  <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
+                    {remedy.steps.map((step, idx) => (
+                      <li key={idx} style={{ marginBottom: "4px" }}>{step}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             ))}
           </div>
         )}
       </section>
-
-      {selectedUpcycleItem && (
-        <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "14px", padding: "20px", marginTop: "20px", background: "rgba(255,255,255,0.15)" }}>
-          <h3 style={{ margin: 0, fontSize: "18px" }}>AI Upcycle Guide for: {selectedUpcycleItem}</h3>
-          {upcycleDashboardData && upcycleDashboardData.guide_text && (
-            <div style={{ background: "rgba(0,0,0,0.2)", padding: "14px", borderRadius: "8px", whiteSpace: "pre-line", fontSize: "13px", lineHeight: "1.5" }}>
-              {upcycleDashboardData.guide_text}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 
@@ -1230,6 +1278,29 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden">
+      <style>{`
+        @keyframes kosBlink {
+          0% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.3; transform: scale(1.12); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        .kos-blink-badge {
+          background-color: #ff3b30;
+          color: white;
+          font-size: 10px;
+          font-weight: bold;
+          padding: 2px 6px;
+          border-radius: 50px;
+          animation: kosBlink 1.2s infinite ease-in-out;
+          box-shadow: 0 0 10px rgba(255, 59, 48, 0.9);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin-left: 6px;
+          vertical-align: middle;
+        }
+      `}</style>
+
       <div className="kos-toast-container" aria-live="polite" aria-atomic="true">
         {toasts.map((toast) => (
           <div key={toast.id} className={`kos-toast kos-toast-${toast.type}`} role={toast.type === "error" ? "alert" : "status"}>
@@ -1294,7 +1365,11 @@ export default function App() {
               setActiveTab={(tab) => {
                 setActiveTab(tab);
                 setShowProfileDashboard(false);
+                if (tab === "secondlife") {
+                  setExpiredCount(0);
+                }
               }}
+              expiredCount={expiredCount}
             />
           </div>
 

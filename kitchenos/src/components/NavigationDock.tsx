@@ -9,6 +9,7 @@ export type Tab =
 type NavigationDockProps = {
   activeTab: Tab;
   setActiveTab: (tab: Tab) => void;
+  expiredCount?: number;
 };
 
 const navigationItems: {
@@ -18,32 +19,32 @@ const navigationItems: {
 }[] = [
   {
     key: "home",
-    icon: "",
+    icon: "🏠",
     label: "Home",
   },
   {
     key: "pantry",
-    icon: "",
+    icon: "🥕",
     label: "Pantry",
   },
   {
     key: "recipes",
-    icon: "",
+    icon: "🍳",
     label: "Recipes",
   },
   {
     key: "planner",
-    icon: "",
+    icon: "📅",
     label: "Plan",
   },
   {
     key: "shopping",
-    icon: "",
+    icon: "🛒",
     label: "Shop",
   },
   {
     key: "secondlife",
-    icon: "",
+    icon: "♻️",
     label: "Reuse",
   },
 ];
@@ -51,6 +52,7 @@ const navigationItems: {
 export function NavigationDock({
   activeTab,
   setActiveTab,
+  expiredCount = 0,
 }: NavigationDockProps) {
   return (
     <nav 
@@ -67,6 +69,7 @@ export function NavigationDock({
     >
       {navigationItems.map((item) => {
         const isActive = activeTab === item.key;
+        const isReuseTab = item.key === "secondlife";
 
         return (
           <button
@@ -88,11 +91,19 @@ export function NavigationDock({
               cursor: "pointer",
               padding: "4px 6px",
               flex: 1,
+              position: "relative",
             }}
           >
-            <span aria-hidden="true" style={{ fontSize: "1.1rem", lineHeight: "1.2" }}>
-              {item.icon}
-            </span>
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              <span aria-hidden="true" style={{ fontSize: "1.1rem", lineHeight: "1.2" }}>
+                {item.icon}
+              </span>
+              {isReuseTab && expiredCount > 0 && (
+                <span className="kos-blink-badge" style={{ position: "absolute", top: "-6px", right: "-12px" }}>
+                  {expiredCount}
+                </span>
+              )}
+            </div>
             <span
               style={{
                 fontSize: "0.58rem",

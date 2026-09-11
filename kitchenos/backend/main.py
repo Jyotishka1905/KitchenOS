@@ -247,50 +247,61 @@ def generate_smart_shopping_list(db: Session = Depends(get_db)):
 
 @app.get("/api/second-life/remedies")
 def get_second_life_remedies(db: Session = Depends(get_db)):
+    """
+    Automatically detects items past their expiry date, 
+    removes them from active pantry inventory, and generates second-life guides.
+    """
     ingredients = db.query(models.IngredientModel).all()
     today = datetime.now().date()
     
     dynamic_remedies = []
     remedy_id = 1
+    items_to_delete = []
     
     for item in ingredients:
-        is_expired = False
-        is_expiring_soon = False
-        
         if item.expiry_date:
             try:
                 exp_date = datetime.strptime(item.expiry_date, "%Y-%m-%d").date()
                 delta = (exp_date - today).days
+                
+                # If product is expired, move to second life hub & remove from pantry
                 if delta < 0:
-                    is_expired = True
-                elif delta <= 3:
-                    is_expiring_soon = True
+                    guide = generate_upcycle_remedy(item.name, item.category)
+                    guide_text = guide.get("guide_text", f"Chop and add {item.name} to composting soil or use for natural cleaning infusions.")
+                    
+                    dynamic_remedies.append({
+                        "id": remedy_id,
+                        "category": "Upcycle Guide (Expired)",
+                        "title": f"Second Life Guide for {item.name}",
+                        "description": f"Your {item.name} expired on {item.expiry_date}. It has been moved here for composting or upcycling.",
+                        "icon": item.icon or "♻️",
+                        "steps": [
+                            f"Archived from pantry due to expiration ({item.expiry_date}).",
+                            guide_text
+                        ]
+                    })
+                    items_to_delete.append(item)
+                    remedy_id += 1
             except Exception:
                 pass
                 
-        if is_expired or is_expiring_soon or item.category in ["Vegetables", "Fruits"]:
-            status_label = "Expired" if is_expired else ("Expiring Soon" if is_expiring_soon else "Pantry Stock")
-            
-            dynamic_remedies.append({
-                "id": remedy_id,
-                "category": f"Upcycle Guide ({status_label})",
-                "title": f"Second Life Guide for {item.name}",
-                "description": f"Your {item.name} is {status_label.lower()}. Give it a second life through composting or natural reuse.",
-                "icon": "♻️",
-                "steps": [
-                    f"Assess the condition of {item.name}.",
-                    "Chop and mix into composting soil bins if past consumption stage.",
-                    "Alternatively, use citrus or peel varieties for natural surface cleaning infusions."
-                ]
-            })
-            remedy_id += 1
+    # Commit removal from active pantry database
+    if items_to_delete:
+        for item in items_to_delete:
+            db.delete(item)
+        db.commit()
+        if cache:
+            try:
+                cache.delete("pantry_inventory")
+            except Exception:
+                pass
 
     if not dynamic_remedies:
         dynamic_remedies.append({
             "id": 99,
             "category": "General Hub",
             "title": "Pantry Fresh",
-            "description": "No items requiring immediate second-life intervention.",
+            "description": "No expired items currently requiring second-life intervention.",
             "icon": "✨",
             "steps": ["Monitor expiration dates as you add new stock."]
         })
