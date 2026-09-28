@@ -1,0 +1,11 @@
+name,icon,category,quantity,unit,expiry_date,user_id
+Milk,🥛,Dairy,1.0,litre,2026-10-02,default_user
+Paneer,🧀,Dairy,250.0,grams,2026-09-30,default_user
+Tomatoes,🍅,Vegetables,5.0,pcs,2026-10-01,default_user
+Rice,🌾,Grains,2.0,kg,2027-01-01,default_user
+Eggs,🥚,Dairy,6.0,pcs,2026-10-05,default_user
+Lentils,🫘,Grains,1.0,kg,2026-12-31,default_user
+Onions,🧅,Vegetables,1.0,kg,2026-10-15,default_user
+Potatoes,🥔,Vegetables,2.0,kg,2026-10-20,default_user
+Curd,🥣,Dairy,400.0,grams,2026-09-29,default_user
+Coriander,🌿,Vegetables,1.0,bunch,2026-09-30,default_user
