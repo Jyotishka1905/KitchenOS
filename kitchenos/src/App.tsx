@@ -158,6 +158,20 @@ export default function App() {
 
   const [smartShopping, setSmartShopping] = useState<SmartShoppingData | null>(null);
 
+  // New Backend Feature States
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [voiceInput, setVoiceInput] = useState("Hey Kitchen OS, I just used half the cottage cheese and put 200g of cooked dal in the fridge");
+  const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
+  const [lastVoiceResponse, setLastVoiceResponse] = useState<any | null>(null);
+
+  const [isFreshnessModalOpen, setIsFreshnessModalOpen] = useState(false);
+  const [freshnessAudit, setFreshnessAudit] = useState<any | null>(null);
+  const [isFreshnessLoading, setIsFreshnessLoading] = useState(false);
+
+  const [isZeroWasteLoading, setIsZeroWasteLoading] = useState(false);
+  const [isMealPlanLoading, setIsMealPlanLoading] = useState(false);
+  const [macroAnalytics, setMacroAnalytics] = useState<any | null>(null);
+
   useEffect(() => {
     // Fetch pantry ingredients
     fetch("http://localhost:8001/api/ingredients")
@@ -311,6 +325,171 @@ export default function App() {
     } catch (err) {
       console.error(err);
       showToast("Could not generate smart shopping list.", "error");
+    }
+  };
+
+  // =========================================================
+  // INTEGRATED BACKEND FEATURE HANDLERS
+  // =========================================================
+
+  const fetchFreshnessAudit = async () => {
+    setIsFreshnessLoading(true);
+    try {
+      const res = await fetch("http://localhost:8001/api/spoilage/freshness");
+      if (!res.ok) throw new Error("Failed to load freshness audit");
+      const data = await res.json();
+      setFreshnessAudit(data);
+      setIsFreshnessModalOpen(true);
+      showToast("Deterministic Spoilage Engine audit loaded!", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Could not load spoilage freshness audit.", "error");
+    } finally {
+      setIsFreshnessLoading(false);
+    }
+  };
+
+  const handleZeroWasteChef = async () => {
+    setIsZeroWasteLoading(true);
+    showToast("Zero-Waste Chef analyzing expiring stock...", "info");
+    try {
+      const res = await fetch("http://localhost:8001/api/recipes/zero-waste", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cuisine: selectedCuisinePref,
+          spices: selectedSpicePref,
+          dietary_pref: "Zero-Waste Spoilage Prevention Priority"
+        })
+      });
+      if (!res.ok) throw new Error("Failed to generate zero waste recipe");
+      const data = await res.json();
+      setSelectedExpiringItem(data.expiring_item || "Pantry Urgent Items");
+      setRecipeDashboardData(data);
+      showToast(`Generated: ${data.title || "Zero-Waste Recipe"}!`, "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Could not generate zero-waste recipe.", "error");
+    } finally {
+      setIsZeroWasteLoading(false);
+    }
+  };
+
+  const handleVoiceCommand = async (cmdText?: string) => {
+    const textToSend = cmdText || voiceInput;
+    if (!textToSend.trim()) {
+      showToast("Please enter or speak a kitchen command.", "error");
+      return;
+    }
+    setIsVoiceProcessing(true);
+    showToast("Processing kitchen voice command...", "info");
+    try {
+      const res = await fetch("http://localhost:8001/api/voice/process-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: textToSend,
+          user_id: user?.email || "default_user",
+          generate_audio: true
+        })
+      });
+      if (!res.ok) throw new Error("Voice command failed");
+      const data = await res.json();
+      setLastVoiceResponse(data);
+      showToast(data.confirmation_text || "Inventory updated verbally!", "success");
+
+      // Play synthesized natural ElevenLabs audio response if available
+      if (data.audio_base64) {
+        try {
+          const audio = new Audio(data.audio_base64);
+          audio.play().catch(e => console.log("Audio playback blocked", e));
+        } catch (e) {
+          console.error("Audio playback error", e);
+        }
+      }
+
+      // Refresh pantry inventory immediately
+      const pRes = await fetch("http://localhost:8001/api/ingredients");
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        setIngredients(pData.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          icon: item.icon || "📦",
+          category: item.category,
+          quantity: item.quantity,
+          unit: item.unit,
+          expiryDate: item.expiry_date,
+        })));
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Voice logging failed.", "error");
+    } finally {
+      setIsVoiceProcessing(false);
+    }
+  };
+
+  const handleGenerateWeeklyMealPlan = async (goal: string = "High Protein") => {
+    setIsMealPlanLoading(true);
+    showToast(`Generating ${goal} meal plan from unexpired pantry...`, "info");
+    try {
+      const res = await fetch("http://localhost:8001/api/meal-plans/generate-weekly", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dietary_goals: [goal, "High Fiber"],
+          calorie_target: 2000,
+          family_size: 2,
+          user_id: user?.email || "default_user",
+          auto_save: true
+        })
+      });
+      if (!res.ok) throw new Error("Failed to generate meal plan");
+      const data = await res.json();
+      setMacroAnalytics(data.macro_analytics);
+
+      // Refresh meal plans
+      const userId = user?.email || "default_user";
+      const mpRes = await fetch(`http://localhost:8001/api/meal-plans?user_id=${userId}`);
+      if (mpRes.ok) {
+        const mpData = await mpRes.json();
+        setMealPlans(mpData);
+      }
+      showToast("Weekly meal plan & macro analytics generated!", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to generate weekly meal plan.", "error");
+    } finally {
+      setIsMealPlanLoading(false);
+    }
+  };
+
+  const handleStartVoiceListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showToast("Speech recognition not supported in this browser. Please type your command.", "info");
+      return;
+    }
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onstart = () => showToast("🎙️ Listening... Speak your kitchen update!", "info");
+      recognition.onresult = (event: any) => {
+        const text = event.results[0][0].transcript;
+        setVoiceInput(text);
+        showToast(`Heard: "${text}"`, "success");
+      };
+      recognition.onerror = (e: any) => {
+        console.error("Speech error", e);
+        showToast("Speech error or microphone permission denied.", "error");
+      };
+      recognition.start();
+    } catch (err) {
+      console.error(err);
+      showToast("Speech recognition unavailable.", "error");
     }
   };
 
@@ -778,6 +957,24 @@ export default function App() {
           <p>Everything in your kitchen, organized.</p>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <button
+            type="button"
+            className="kos-add-button"
+            onClick={() => setIsVoiceModalOpen(true)}
+            title="Voice Inventory Logging (ElevenLabs Speech)"
+            style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}
+          >
+            🎙️
+          </button>
+          <button
+            type="button"
+            className="kos-add-button"
+            onClick={fetchFreshnessAudit}
+            title="Deterministic Spoilage Engine Freshness Audit"
+            style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}
+          >
+            🔬
+          </button>
           <label className="kos-add-button" title="Scan Grocery Image (YOLOv8)" style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: "40px", height: "40px", borderRadius: "50%", background: "rgba(255, 255, 255, 0.15)", border: "1px solid rgba(255, 255, 255, 0.3)", fontSize: "18px" }}>
             📷
             <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageUpload} disabled={isScanning} />
@@ -787,6 +984,25 @@ export default function App() {
           </button>
         </div>
       </section>
+
+      <div style={{ display: "flex", gap: "8px", margin: "10px 0" }}>
+        <button
+          type="button"
+          onClick={fetchFreshnessAudit}
+          className="kos-modal-submit"
+          style={{ flex: 1, padding: "8px 12px", margin: 0, fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+        >
+          🔬 {isFreshnessLoading ? "Calculating Decay..." : "Deterministic Spoilage Engine (Freshness & Countdowns)"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsVoiceModalOpen(true)}
+          className="kos-modal-submit"
+          style={{ flex: 1, padding: "8px 12px", margin: 0, fontSize: "12px", background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+        >
+          🎙️ Voice Quick Update
+        </button>
+      </div>
 
       <section className="kos-pantry-stats">
         <div className="kos-pantry-stat">
@@ -871,6 +1087,18 @@ export default function App() {
             <p>Select an expiring ingredient and your preferred spices/cuisine to generate instant recipes.</p>
           </div>
         </section>
+
+        <div style={{ margin: "10px 0 16px" }}>
+          <button
+            type="button"
+            className="kos-modal-submit"
+            onClick={handleZeroWasteChef}
+            disabled={isZeroWasteLoading}
+            style={{ padding: "10px 18px", width: "100%", margin: 0, fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+          >
+            ⚡ {isZeroWasteLoading ? "Zero-Waste Chef Generating..." : "Zero-Waste Chef: Auto-Prioritize Expiring Stock"}
+          </button>
+        </div>
 
         <section className="kos-ingredient-section" style={{ margin: "15px 0" }}>
           <p className="kos-small-heading">SELECT EXPIRING SOON PRODUCT</p>
@@ -1009,6 +1237,66 @@ export default function App() {
             </button>
           ))}
         </div>
+
+        {/* AI Family Meal Planner & Macro Analytics Bar */}
+        <div style={{ display: "flex", gap: "10px", margin: "10px 0 16px 0", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="kos-modal-submit"
+            style={{ flex: 1, minWidth: "220px", margin: 0, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+            onClick={() => handleGenerateWeeklyMealPlan("High Protein")}
+            disabled={isMealPlanLoading}
+          >
+            <span>{isMealPlanLoading ? "⏳" : "⚡"}</span>
+            <span>{isMealPlanLoading ? "Generating AI Plan..." : "AI Family Plan (High Protein & Zero-Waste)"}</span>
+          </button>
+          <button
+            type="button"
+            className="kos-add-button"
+            style={{ borderRadius: "12px", padding: "10px 14px", height: "auto", fontSize: "14px", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}
+            onClick={() => handleGenerateWeeklyMealPlan("High Fiber")}
+            disabled={isMealPlanLoading}
+            title="Generate High Fiber Meal Plan"
+          >
+            🌾 High Fiber
+          </button>
+        </div>
+
+        {macroAnalytics && (
+          <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "10px", padding: "16px", marginBottom: "20px", background: "rgba(255, 255, 255, 0.85)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+              <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#5a2111" }}>📊 Weekly Family Macro Analytics</h3>
+              <span style={{ fontSize: "12px", color: "rgba(90,33,17,0.7)" }}>Targets Met: {macroAnalytics.macro_compliance_score || "100%"}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(95px, 1fr))", gap: "8px", width: "100%" }}>
+              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
+                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Daily Avg</span>
+                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_calories || 2050} kcal</p>
+              </div>
+              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
+                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Protein</span>
+                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_protein_g || 115}g</p>
+              </div>
+              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
+                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Carbs</span>
+                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_carbs_g || 220}g</p>
+              </div>
+              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
+                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Fats</span>
+                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_fat_g || 65}g</p>
+              </div>
+              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
+                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Fiber</span>
+                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_fiber_g || 34}g</p>
+              </div>
+            </div>
+            {macroAnalytics.dietary_notes && (
+              <p style={{ margin: 0, fontSize: "12px", color: "rgba(90,33,17,0.8)", fontStyle: "italic" }}>
+                💡 {macroAnalytics.dietary_notes}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "10px", padding: "16px", marginBottom: "20px" }}>
           <h3 style={{ margin: 0, fontSize: "16px" }}>Add Meal for {selectedDay}</h3>
@@ -1187,6 +1475,30 @@ export default function App() {
           <p>Expired items automatically migrate here with customized upcycling, cleaning, and composting guides.</p>
         </div>
       </section>
+
+      <div style={{ display: "flex", gap: "10px", marginTop: "12px", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="kos-modal-submit"
+          style={{ flex: 1, minWidth: "220px", margin: 0, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+          onClick={async () => {
+            showToast("Syncing expired inventory to Second Life Hub...", "info");
+            try {
+              const res = await fetch("http://localhost:8001/api/second-life/remedies?force_sync=true");
+              if (res.ok) {
+                const data = await res.json();
+                setSecondLifeRemedies(data);
+                showToast("Second Life Hub synced with latest expired goods!", "success");
+              }
+            } catch (e) {
+              showToast("Failed to sync Second Life Hub.", "error");
+            }
+          }}
+        >
+          <span>♻️</span>
+          <span>Auto-Scan & Upcycle Expired Stock</span>
+        </button>
+      </div>
 
       <section className="kos-ingredient-section" style={{ marginTop: "20px" }}>
         <div className="kos-list-heading">
@@ -1474,6 +1786,217 @@ export default function App() {
                   {authMode === "signup" ? "Already have an account?" : "New to KitchenOS?"}
                   <button type="button" onClick={() => openAuth(authMode === "signup" ? "signin" : "signup")}>
                     {authMode === "signup" ? "Sign In" : "Create Account"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VOICE INVENTORY LOGGING MODAL */}
+          {isVoiceModalOpen && (
+            <div className="kos-auth-backdrop" onClick={() => setIsVoiceModalOpen(false)}>
+              <div className="kos-auth-modal" style={{ maxWidth: "520px" }} onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="kos-auth-close" onClick={() => setIsVoiceModalOpen(false)}>×</button>
+                <div className="kos-modal-icon">🎙️</div>
+                <h2>Voice Inventory Logging</h2>
+                <p style={{ textAlign: "center", fontSize: "13px", color: "rgba(90, 33, 17, 0.8)", margin: "0 0 16px" }}>
+                  Hands-free natural speech updates. Log pantry additions, partial consumptions, or discards.
+                </p>
+
+                <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="kos-add-button"
+                    onClick={handleStartVoiceListening}
+                    style={{ borderRadius: "10px", width: "auto", height: "auto", padding: "8px 14px", fontSize: "13px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}
+                  >
+                    <span>🎙️</span>
+                    <span>Tap to Speak</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="kos-category-button is-selected"
+                    onClick={() => setVoiceInput("Hey Kitchen OS, I just used half the cottage cheese and put 200g of cooked dal in the fridge")}
+                    style={{ fontSize: "11px", padding: "6px 10px" }}
+                  >
+                    Quick Sample
+                  </button>
+                </div>
+
+                <form onSubmit={(e) => { e.preventDefault(); handleVoiceCommand(voiceInput); }}>
+                  <label className="kos-modal-label">
+                    Natural Language Command
+                    <textarea
+                      rows={3}
+                      placeholder='e.g., "Used half the paneer, added 1kg basmati rice, and threw away spoiled milk"'
+                      value={voiceInput}
+                      onChange={(e) => setVoiceInput(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(90, 33, 17, 0.2)",
+                        background: "#ffffff",
+                        color: "#5a2111",
+                        fontFamily: "inherit",
+                        fontSize: "13px",
+                        resize: "vertical",
+                        boxSizing: "border-box"
+                      }}
+                    />
+                  </label>
+
+                  <button
+                    type="submit"
+                    className="kos-modal-submit"
+                    disabled={isVoiceProcessing || !voiceInput.trim()}
+                    style={{ marginTop: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+                  >
+                    <span>{isVoiceProcessing ? "⏳" : "⚡"}</span>
+                    <span>{isVoiceProcessing ? "Processing Speech..." : "Process Kitchen Update"}</span>
+                  </button>
+                </form>
+
+                {lastVoiceResponse && (
+                  <div style={{ marginTop: "16px", padding: "12px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "10px", fontSize: "13px", color: "#5a2111" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                      <strong>Summary:</strong>
+                      {lastVoiceResponse.audio_base64 && (
+                        <button
+                          type="button"
+                          className="kos-add-button"
+                          onClick={() => {
+                            const audio = new Audio(lastVoiceResponse.audio_base64);
+                            audio.play().catch(console.error);
+                          }}
+                          style={{ width: "auto", height: "auto", padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
+                        >
+                          🔊 Replay Audio
+                        </button>
+                      )}
+                    </div>
+                    <p style={{ margin: "0 0 8px" }}>{lastVoiceResponse.natural_summary}</p>
+                    {lastVoiceResponse.added_items && lastVoiceResponse.added_items.length > 0 && (
+                      <p style={{ margin: "2px 0", fontSize: "12px" }}>
+                        ✅ <strong>Added:</strong> {lastVoiceResponse.added_items.map((i: any) => `${i.quantity} ${i.unit} ${i.name}`).join(", ")}
+                      </p>
+                    )}
+                    {lastVoiceResponse.consumed_items && lastVoiceResponse.consumed_items.length > 0 && (
+                      <p style={{ margin: "2px 0", fontSize: "12px" }}>
+                        🍳 <strong>Consumed:</strong> {lastVoiceResponse.consumed_items.map((i: any) => `${i.percentage_used ? i.percentage_used + '% of' : i.amount_used} ${i.name}`).join(", ")}
+                      </p>
+                    )}
+                    {lastVoiceResponse.discarded_items && lastVoiceResponse.discarded_items.length > 0 && (
+                      <p style={{ margin: "2px 0", fontSize: "12px" }}>
+                        🗑️ <strong>Discarded:</strong> {lastVoiceResponse.discarded_items.map((i: any) => i.name).join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* DETERMINISTIC SPOILAGE ENGINE FRESHNESS MODAL */}
+          {isFreshnessModalOpen && (
+            <div className="kos-auth-backdrop" onClick={() => setIsFreshnessModalOpen(false)}>
+              <div className="kos-auth-modal" style={{ maxWidth: "600px", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="kos-auth-close" onClick={() => setIsFreshnessModalOpen(false)}>×</button>
+                <div className="kos-modal-icon">🔬</div>
+                <h2>Deterministic Spoilage Engine</h2>
+                <p style={{ textAlign: "center", fontSize: "13px", color: "rgba(90, 33, 17, 0.8)", margin: "0 0 16px" }}>
+                  Real-time countdowns & non-linear freshness degradation curve calibrated with USDA FoodKeeper & Indian staple shelf-lives.
+                </p>
+
+                {freshnessAudit ? (
+                  <div>
+                    {/* Metrics Grid */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "16px" }}>
+                      <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
+                        <span style={{ fontSize: "10px", color: "#5a2111", fontWeight: 700 }}>AVG FRESHNESS</span>
+                        <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 800, color: "#5a2111" }}>{freshnessAudit.average_freshness_pct}%</p>
+                      </div>
+                      <div style={{ padding: "8px", background: "rgba(22, 101, 52, 0.08)", borderRadius: "8px", textAlign: "center" }}>
+                        <span style={{ fontSize: "10px", color: "#166534", fontWeight: 700 }}>FRESH</span>
+                        <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 800, color: "#166534" }}>{freshnessAudit.fresh_count || 0}</p>
+                      </div>
+                      <div style={{ padding: "8px", background: "rgba(180, 83, 9, 0.08)", borderRadius: "8px", textAlign: "center" }}>
+                        <span style={{ fontSize: "10px", color: "#b45309", fontWeight: 700 }}>EXPIRING SOON</span>
+                        <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 800, color: "#b45309" }}>{freshnessAudit.expiring_soon_count || 0}</p>
+                      </div>
+                      <div style={{ padding: "8px", background: "rgba(185, 28, 28, 0.08)", borderRadius: "8px", textAlign: "center" }}>
+                        <span style={{ fontSize: "10px", color: "#b91c1c", fontWeight: 700 }}>EXPIRED</span>
+                        <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 800, color: "#b91c1c" }}>{freshnessAudit.expired_count || 0}</p>
+                      </div>
+                    </div>
+
+                    {/* Freshness Item List */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {freshnessAudit.items && freshnessAudit.items.map((item: any, idx: number) => {
+                        const pct = item.freshness_percentage ?? 100;
+                        const isExp = item.countdown?.is_expired;
+                        const barColor = isExp ? "#b91c1c" : pct < 35 ? "#dc2626" : pct < 70 ? "#d97706" : "#16a34a";
+                        return (
+                          <div key={idx} style={{ padding: "10px 14px", background: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(90, 33, 17, 0.12)", borderRadius: "8px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <span style={{ fontSize: "18px" }}>{item.icon || "📦"}</span>
+                                <div>
+                                  <strong style={{ fontSize: "13px", color: "#5a2111" }}>{item.name}</strong>
+                                  <span style={{ fontSize: "11px", color: "rgba(90, 33, 17, 0.6)", marginLeft: "6px" }}>({item.quantity} {item.unit})</span>
+                                </div>
+                              </div>
+                              <span style={{ fontSize: "12px", fontWeight: 700, color: barColor }}>
+                                {isExp ? "Expired" : `${pct}% Fresh`}
+                              </span>
+                            </div>
+
+                            {/* Decay Progress Bar */}
+                            <div style={{ width: "100%", height: "6px", background: "rgba(0,0,0,0.08)", borderRadius: "3px", overflow: "hidden", marginBottom: "6px" }}>
+                              <div style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: "100%", background: barColor, borderRadius: "3px", transition: "width 0.3s" }} />
+                            </div>
+
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "rgba(90, 33, 17, 0.75)" }}>
+                              <span>⏱️ {item.countdown?.display || (isExp ? "Expired" : "Fresh")}</span>
+                              <span>📍 {item.storage_location || "pantry"}</span>
+                            </div>
+
+                            {item.storage_tip && (
+                              <p style={{ margin: "4px 0 0", fontSize: "11px", color: "rgba(90, 33, 17, 0.85)", fontStyle: "italic" }}>
+                                💡 {item.storage_tip}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: "center", padding: "20px" }}>
+                    <p>Loading freshness data from Spoilage Engine...</p>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                  <button
+                    type="button"
+                    className="kos-modal-submit"
+                    onClick={fetchFreshnessAudit}
+                    style={{ flex: 1, margin: 0 }}
+                  >
+                    🔄 Recalculate Decay Timelines
+                  </button>
+                  <button
+                    type="button"
+                    className="kos-add-button"
+                    onClick={() => {
+                      setIsFreshnessModalOpen(false);
+                      setActiveTab("recipes");
+                      handleZeroWasteChef();
+                    }}
+                    style={{ width: "auto", height: "auto", padding: "10px 14px", borderRadius: "8px", fontSize: "13px", fontWeight: 700 }}
+                  >
+                    ⚡ Cook Expiring Stock
                   </button>
                 </div>
               </div>

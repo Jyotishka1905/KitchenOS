@@ -1,7 +1,0 @@
-import uvicorn
-import os
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8001))
-    print(f"Starting KitchenOS Backend Server on port {port}...")
-    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)
