@@ -933,14 +933,6 @@ export default function App() {
           </p>
         </div>
       )}
-
-      <section className="kos-use-soon">
-        <p className="kos-use-soon-title">⚠️ USE SOON</p>
-        <p className="kos-expiring">{expiringIngredients.length} ingredients expiring</p>
-        <button type="button" onClick={() => setActiveTab("pantry")} className="kos-view-pantry">
-          View Pantry
-        </button>
-      </section>
     </div>
   );
 
@@ -984,25 +976,6 @@ export default function App() {
           </button>
         </div>
       </section>
-
-      <div style={{ display: "flex", gap: "8px", margin: "10px 0" }}>
-        <button
-          type="button"
-          onClick={fetchFreshnessAudit}
-          className="kos-modal-submit"
-          style={{ flex: 1, padding: "8px 12px", margin: 0, fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-        >
-          🔬 {isFreshnessLoading ? "Calculating Decay..." : "Deterministic Spoilage Engine (Freshness & Countdowns)"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsVoiceModalOpen(true)}
-          className="kos-modal-submit"
-          style={{ flex: 1, padding: "8px 12px", margin: 0, fontSize: "12px", background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-        >
-          🎙️ Voice Quick Update
-        </button>
-      </div>
 
       <section className="kos-pantry-stats">
         <div className="kos-pantry-stat">
@@ -1170,7 +1143,7 @@ export default function App() {
 
         {selectedExpiringItem && (
           <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "14px", padding: "20px", marginTop: "20px", background: "rgba(255,255,255,0.15)" }}>
-            <h3 style={{ margin: 0, fontSize: "18px" }}>AI Recipe for: {selectedExpiringItem}</h3>
+            <h3 style={{ margin: 0, fontSize: "18px" }}>{recipeDashboardData?.title || `AI Recipe for: ${selectedExpiringItem}`}</h3>
             <p style={{ margin: 0, fontSize: "12px", opacity: 0.85 }}>
               Cuisine: <strong>{selectedCuisinePref}</strong> | Spices: <strong>{selectedSpicePref}</strong>
             </p>
@@ -1238,27 +1211,17 @@ export default function App() {
           ))}
         </div>
 
-        {/* AI Family Meal Planner & Macro Analytics Bar */}
-        <div style={{ display: "flex", gap: "10px", margin: "10px 0 16px 0", flexWrap: "wrap" }}>
+        {/* AI Family Meal Planner Bar */}
+        <div style={{ margin: "10px 0 16px 0" }}>
           <button
             type="button"
             className="kos-modal-submit"
-            style={{ flex: 1, minWidth: "220px", margin: 0, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
-            onClick={() => handleGenerateWeeklyMealPlan("High Protein")}
+            style={{ width: "100%", margin: 0, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+            onClick={() => handleGenerateWeeklyMealPlan("Balanced High Protein & Fiber")}
             disabled={isMealPlanLoading}
           >
             <span>{isMealPlanLoading ? "⏳" : "⚡"}</span>
-            <span>{isMealPlanLoading ? "Generating AI Plan..." : "AI Family Plan (High Protein & Zero-Waste)"}</span>
-          </button>
-          <button
-            type="button"
-            className="kos-add-button"
-            style={{ borderRadius: "12px", padding: "10px 14px", height: "auto", fontSize: "14px", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}
-            onClick={() => handleGenerateWeeklyMealPlan("High Fiber")}
-            disabled={isMealPlanLoading}
-            title="Generate High Fiber Meal Plan"
-          >
-            🌾 High Fiber
+            <span>{isMealPlanLoading ? "Generating AI Plan..." : "Generate AI Family Meal Plan (Zero-Waste & Macro-Optimized)"}</span>
           </button>
         </div>
 
