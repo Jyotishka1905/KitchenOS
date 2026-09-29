@@ -1,6 +1,14 @@
-import { useMemo, useState, useEffect, type FormEvent } from "react";
+import {
+  useMemo,
+  useState,
+  useEffect,
+  type FormEvent,
+  type ChangeEvent,
+} from "react";
 import LandingPage from "./pages/LandingPage";
 import { NavigationDock } from "./components/NavigationDock";
+
+const API = "http://localhost:8001";
 
 type Tab = "home" | "pantry" | "recipes" | "planner" | "shopping" | "secondlife";
 
@@ -94,6 +102,16 @@ const daysOfWeek = [
   "Sunday",
 ];
 
+const mapIngredient = (item: any): Ingredient => ({
+  id: item.id,
+  name: item.name,
+  icon: item.icon || "📦",
+  category: item.category,
+  quantity: item.quantity,
+  unit: item.unit,
+  expiryDate: item.expiry_date,
+});
+
 export default function App() {
   const [inApp, setInApp] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("home");
@@ -105,11 +123,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(() => {
     try {
       const savedUser = localStorage.getItem("kitchenos_user");
-
-      if (!savedUser) {
-        return null;
-      }
-
+      if (!savedUser) return null;
       return JSON.parse(savedUser) as User;
     } catch {
       return null;
@@ -131,11 +145,25 @@ export default function App() {
 
   const [authError, setAuthError] = useState("");
 
-  // Personalized profile dashboard
   const [showProfileDashboard, setShowProfileDashboard] = useState(false);
 
-  // Global toaster notifications
+  // =========================================================
+  // TOASTS (defined early so effects/handlers can use them)
+  // =========================================================
+
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const showToast = (message: string, type: ToastType = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts((current) => [...current, { id, message, type }]);
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 3200);
+  };
+
+  const removeToast = (id: number) => {
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  };
 
   // =========================================================
   // PANTRY, MEAL PLANS, RECIPES, REMEDIES & SHOPPING
@@ -146,23 +174,54 @@ export default function App() {
   const [selectedDay, setSelectedDay] = useState("Monday");
   const [mealInput, setMealInput] = useState({ meal_type: "Lunch", recipe_name: "" });
 
-  // Recipe & Preference States
   const [selectedExpiringItem, setSelectedExpiringItem] = useState<string>("");
   const [selectedSpicePref, setSelectedSpicePref] = useState<string>("General");
   const [selectedCuisinePref, setSelectedCuisinePref] = useState<string>("Indian");
   const [recipeDashboardData, setRecipeDashboardData] = useState<any | null>(null);
 
-  // Second Life Remedies State
   const [secondLifeRemedies, setSecondLifeRemedies] = useState<SecondLifeRemedy[]>([]);
   const [expiredCount, setExpiredCount] = useState<number>(0);
 
   const [smartShopping, setSmartShopping] = useState<SmartShoppingData | null>(null);
 
-  // New Backend Feature States
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
-  const [voiceInput, setVoiceInput] = useState("Hey Kitchen OS, I just used half the cottage cheese and put 200g of cooked dal in the fridge");
+  const [voiceInput, setVoiceInput] = useState(
+    "Hey Kitchen OS, I just used half the cottage cheese and put 200g of cooked dal in the fridge"
+  );
   const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speechRecognitionInstance, setSpeechRecognitionInstance] = useState<any | null>(null);
+  const [mediaRecorderInstance, setMediaRecorderInstance] = useState<MediaRecorder | null>(null);
   const [lastVoiceResponse, setLastVoiceResponse] = useState<any | null>(null);
+
+  const HARDCODED_VOICE_BACKUPS = [
+    {
+      label: "🧀 Half Cottage Cheese & 200g Dal",
+      text: "Hey Kitchen OS, I just used half the cottage cheese and put 200g of cooked dal in the fridge",
+    },
+    {
+      label: "🍚 Added 1kg Rice & 500g Paneer",
+      text: "Added 1kg basmati rice and 500g paneer to the pantry",
+    },
+    {
+      label: "🥛 Used 3 Tomatoes & Discarded Milk",
+      text: "I used 3 tomatoes and threw away the spoiled milk",
+    },
+    {
+      label: "🥚 Put 6 Eggs & 500ml Curd in Fridge",
+      text: "Put 6 eggs and 500ml fresh curd in the refrigerator",
+    },
+    {
+      label: "🥦 Cooked Sabzi & Atta Roti",
+      text: "Used 200g atta to make rotis and stored remaining cooked sabzi in fridge",
+    },
+  ];
+
+  const activateBackupVoiceCommand = (index = 0) => {
+    const selected = HARDCODED_VOICE_BACKUPS[index] || HARDCODED_VOICE_BACKUPS[0];
+    setVoiceInput(selected.text);
+    showToast(`⚡ Backup voice scenario loaded: "${selected.label}"`, "success");
+  };
 
   const [isFreshnessModalOpen, setIsFreshnessModalOpen] = useState(false);
   const [freshnessAudit, setFreshnessAudit] = useState<any | null>(null);
@@ -172,50 +231,101 @@ export default function App() {
   const [isMealPlanLoading, setIsMealPlanLoading] = useState(false);
   const [macroAnalytics, setMacroAnalytics] = useState<any | null>(null);
 
-  useEffect(() => {
-    // Fetch pantry ingredients
-    fetch("http://localhost:8001/api/ingredients")
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error("Failed to load pantry from server.");
-        }
-        return res.json();
-      })
-      .then((data: any[]) => {
-        const formatted = data.map((item) => ({
-          id: item.id,
-          name: item.name,
-          icon: item.icon || "📦",
-          category: item.category,
-          quantity: item.quantity,
-          unit: item.unit,
-          expiryDate: item.expiry_date,
-        }));
-        setIngredients(formatted);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch pantry ingredients:", err);
-        showToast("Could not load pantry from server.", "error");
-      });
+  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
 
-    // Fetch meal plans
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+
+  const [newIngredient, setNewIngredient] = useState({
+    name: "",
+    category: "Vegetables",
+    quantity: "",
+    unit: "pcs",
+    expiryDate: "",
+  });
+
+  // =========================================================
+  // DATA FETCH HELPERS
+  // =========================================================
+
+  const refreshIngredients = async () => {
+    const res = await fetch(`${API}/api/ingredients`);
+    if (!res.ok) throw new Error("Failed to load pantry from server.");
+    const data: any[] = await res.json();
+    setIngredients(data.map(mapIngredient));
+  };
+
+  const fetchRecipeSearch = async (itemName: string, spices: string, cuisine: string) => {
+    try {
+      const res = await fetch(
+        `${API}/api/recipes/generate?item=${encodeURIComponent(itemName)}&spices=${encodeURIComponent(
+          spices
+        )}&cuisine=${encodeURIComponent(cuisine)}`
+      );
+      if (!res.ok) throw new Error("Failed to generate AI recipe");
+      const data = await res.json();
+      setRecipeDashboardData(data);
+    } catch (err) {
+      console.error(err);
+      showToast("Could not generate AI recipe.", "error");
+    }
+  };
+
+  const fetchSecondLifeRemedies = async (forceSync = false) => {
+    try {
+      const url = `${API}/api/second-life/remedies${forceSync ? "?force_sync=true" : ""}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Failed to load second life remedies");
+      const data = await res.json();
+      const remedies: SecondLifeRemedy[] = data.remedies || [];
+      const expiredItemsCount = remedies.filter((r) => r.category.includes("Expired")).length;
+
+      setSecondLifeRemedies(remedies);
+      setExpiredCount(expiredItemsCount);
+
+      await refreshIngredients().catch(() => {});
+      return true;
+    } catch (err) {
+      console.error(err);
+      showToast("Could not load second life remedies.", "error");
+      return false;
+    }
+  };
+
+  const fetchSmartShoppingList = async () => {
+    try {
+      const res = await fetch(`${API}/api/shopping/smart-list`);
+      if (!res.ok) throw new Error("Failed to load smart shopping list");
+      const data = await res.json();
+      setSmartShopping(data);
+    } catch (err) {
+      console.error(err);
+      showToast("Could not generate smart shopping list.", "error");
+    }
+  };
+
+  // =========================================================
+  // EFFECTS
+  // =========================================================
+
+  useEffect(() => {
+    refreshIngredients().catch((err) => {
+      console.error("Failed to fetch pantry ingredients:", err);
+      showToast("Could not load pantry from server.", "error");
+    });
+
     const userId = user?.email || "default_user";
-    fetch(`http://localhost:8001/api/meal-plans?user_id=${userId}`)
+    fetch(`${API}/api/meal-plans?user_id=${encodeURIComponent(userId)}`)
       .then((res) => {
-        if (!res.ok) {
-          throw new Error("Failed to load meal plans.");
-        }
+        if (!res.ok) throw new Error("Failed to load meal plans.");
         return res.json();
       })
-      .then((data: any[]) => {
-        setMealPlans(data);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch meal plans:", err);
-      });
+      .then((data: any[]) => setMealPlans(data))
+      .catch((err) => console.error("Failed to fetch meal plans:", err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Play browser audio beep alarm
   const playBrowserAlarm = () => {
     try {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -223,7 +333,7 @@ export default function App() {
       const gainNode = audioCtx.createGain();
 
       oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // Pitch
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
       gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
 
       oscillator.connect(gainNode);
@@ -236,97 +346,41 @@ export default function App() {
     }
   };
 
-  // Check for expiring item alerts on load and trigger audio/browser notifications
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
 
-    fetch("http://localhost:8001/api/alerts/expiring")
+    fetch(`${API}/api/alerts/expiring`)
       .then((res) => res.json())
       .then((data) => {
         if (data.has_alerts && data.expiring_items.length > 0) {
           const itemNames = data.expiring_items.map((i: any) => i.name).join(", ");
-          
+
           playBrowserAlarm();
           showToast(`🚨 ALARM: Expiring items detected: ${itemNames}`, "error");
 
           if ("Notification" in window && Notification.permission === "granted") {
             new Notification("🚨 KitchenOS Expiry Alarm", {
               body: `The following items are expiring soon: ${itemNames}. Check your pantry!`,
-              icon: "🥕"
             });
           }
         }
       })
       .catch((err) => console.error("Failed to fetch expiry alerts:", err));
 
-    // Also fetch initial second life remedies count on mount to populate the blinking badge if items exist
     fetchSecondLifeRemedies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch contextual tab data when active tab changes
   useEffect(() => {
     if (activeTab === "shopping") {
       fetchSmartShoppingList();
     } else if (activeTab === "secondlife") {
       fetchSecondLifeRemedies();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
-
-  const fetchRecipeSearch = async (itemName: string, spices: string, cuisine: string) => {
-    try {
-      const res = await fetch(`http://localhost:8001/api/recipes/generate?item=${encodeURIComponent(itemName)}&spices=${encodeURIComponent(spices)}&cuisine=${encodeURIComponent(cuisine)}`);
-      if (!res.ok) throw new Error("Failed to generate AI recipe");
-      const data = await res.json();
-      setRecipeDashboardData(data);
-    } catch (err) {
-      console.error(err);
-      showToast("Could not generate AI recipe.", "error");
-    }
-  };
-
-  const fetchSecondLifeRemedies = async () => {
-    try {
-      const res = await fetch("http://localhost:8001/api/second-life/remedies");
-      if (!res.ok) throw new Error("Failed to load second life remedies");
-      const data = await res.json();
-      const remedies = data.remedies || [];
-      const expiredItemsCount = remedies.filter((r: any) => r.category.includes("Expired")).length;
-      
-      setSecondLifeRemedies(remedies);
-      setExpiredCount(expiredItemsCount);
-      
-      const pantryRes = await fetch("http://localhost:8001/api/ingredients");
-      if (pantryRes.ok) {
-        const pantryData = await pantryRes.json();
-        setIngredients(pantryData.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          icon: item.icon || "📦",
-          category: item.category,
-          quantity: item.quantity,
-          unit: item.unit,
-          expiryDate: item.expiry_date,
-        })));
-      }
-    } catch (err) {
-      console.error(err);
-      showToast("Could not load second life remedies.", "error");
-    }
-  };
-
-  const fetchSmartShoppingList = async () => {
-    try {
-      const res = await fetch("http://localhost:8001/api/shopping/smart-list");
-      if (!res.ok) throw new Error("Failed to load smart shopping list");
-      const data = await res.json();
-      setSmartShopping(data);
-    } catch (err) {
-      console.error(err);
-      showToast("Could not generate smart shopping list.", "error");
-    }
-  };
 
   // =========================================================
   // INTEGRATED BACKEND FEATURE HANDLERS
@@ -335,7 +389,7 @@ export default function App() {
   const fetchFreshnessAudit = async () => {
     setIsFreshnessLoading(true);
     try {
-      const res = await fetch("http://localhost:8001/api/spoilage/freshness");
+      const res = await fetch(`${API}/api/spoilage/freshness`);
       if (!res.ok) throw new Error("Failed to load freshness audit");
       const data = await res.json();
       setFreshnessAudit(data);
@@ -353,14 +407,14 @@ export default function App() {
     setIsZeroWasteLoading(true);
     showToast("Zero-Waste Chef analyzing expiring stock...", "info");
     try {
-      const res = await fetch("http://localhost:8001/api/recipes/zero-waste", {
+      const res = await fetch(`${API}/api/recipes/zero-waste`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cuisine: selectedCuisinePref,
           spices: selectedSpicePref,
-          dietary_pref: "Zero-Waste Spoilage Prevention Priority"
-        })
+          dietary_pref: "Zero-Waste Spoilage Prevention Priority",
+        }),
       });
       if (!res.ok) throw new Error("Failed to generate zero waste recipe");
       const data = await res.json();
@@ -384,44 +438,30 @@ export default function App() {
     setIsVoiceProcessing(true);
     showToast("Processing kitchen voice command...", "info");
     try {
-      const res = await fetch("http://localhost:8001/api/voice/process-command", {
+      const res = await fetch(`${API}/api/voice/process-command`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: textToSend,
           user_id: user?.email || "default_user",
-          generate_audio: true
-        })
+          generate_audio: true,
+        }),
       });
       if (!res.ok) throw new Error("Voice command failed");
       const data = await res.json();
       setLastVoiceResponse(data);
       showToast(data.confirmation_text || "Inventory updated verbally!", "success");
 
-      // Play synthesized natural ElevenLabs audio response if available
       if (data.audio_base64) {
         try {
           const audio = new Audio(data.audio_base64);
-          audio.play().catch(e => console.log("Audio playback blocked", e));
+          audio.play().catch((e) => console.log("Audio playback blocked", e));
         } catch (e) {
           console.error("Audio playback error", e);
         }
       }
 
-      // Refresh pantry inventory immediately
-      const pRes = await fetch("http://localhost:8001/api/ingredients");
-      if (pRes.ok) {
-        const pData = await pRes.json();
-        setIngredients(pData.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          icon: item.icon || "📦",
-          category: item.category,
-          quantity: item.quantity,
-          unit: item.unit,
-          expiryDate: item.expiry_date,
-        })));
-      }
+      await refreshIngredients().catch(() => {});
     } catch (err) {
       console.error(err);
       showToast("Voice logging failed.", "error");
@@ -434,27 +474,25 @@ export default function App() {
     setIsMealPlanLoading(true);
     showToast(`Generating ${goal} meal plan from unexpired pantry...`, "info");
     try {
-      const res = await fetch("http://localhost:8001/api/meal-plans/generate-weekly", {
+      const userId = user?.email || "default_user";
+      const res = await fetch(`${API}/api/meal-plans/generate-weekly`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dietary_goals: [goal, "High Fiber"],
           calorie_target: 2000,
           family_size: 2,
-          user_id: user?.email || "default_user",
-          auto_save: true
-        })
+          user_id: userId,
+          auto_save: true,
+        }),
       });
       if (!res.ok) throw new Error("Failed to generate meal plan");
       const data = await res.json();
       setMacroAnalytics(data.macro_analytics);
 
-      // Refresh meal plans
-      const userId = user?.email || "default_user";
-      const mpRes = await fetch(`http://localhost:8001/api/meal-plans?user_id=${userId}`);
+      const mpRes = await fetch(`${API}/api/meal-plans?user_id=${encodeURIComponent(userId)}`);
       if (mpRes.ok) {
-        const mpData = await mpRes.json();
-        setMealPlans(mpData);
+        setMealPlans(await mpRes.json());
       }
       showToast("Weekly meal plan & macro analytics generated!", "success");
     } catch (err) {
@@ -465,32 +503,170 @@ export default function App() {
     }
   };
 
-  const handleStartVoiceListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      showToast("Speech recognition not supported in this browser. Please type your command.", "info");
-      return;
-    }
+  const handleAudioBlobUpload = async (audioBlob: Blob) => {
+    setIsVoiceProcessing(true);
+    showToast("Processing audio recording via Gemini STT...", "info");
     try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-      recognition.onstart = () => showToast("🎙️ Listening... Speak your kitchen update!", "info");
-      recognition.onresult = (event: any) => {
-        const text = event.results[0][0].transcript;
-        setVoiceInput(text);
-        showToast(`Heard: "${text}"`, "success");
-      };
-      recognition.onerror = (e: any) => {
-        console.error("Speech error", e);
-        showToast("Speech error or microphone permission denied.", "error");
-      };
-      recognition.start();
+      const formData = new FormData();
+      formData.append("file", audioBlob, "kitchen_command.webm");
+      formData.append("user_id", user?.email || "default_user");
+
+      const res = await fetch(`${API}/api/voice/process-audio`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Audio processing failed");
+      const data = await res.json();
+      setLastVoiceResponse(data);
+      if (data.command_text) {
+        setVoiceInput(data.command_text);
+      }
+      showToast(data.confirmation_text || "Inventory updated via audio recording!", "success");
+
+      if (data.audio_base64) {
+        try {
+          const audio = new Audio(data.audio_base64);
+          audio.play().catch((e) => console.log("Audio playback blocked", e));
+        } catch (e) {
+          console.error("Audio playback error", e);
+        }
+      }
+
+      await refreshIngredients().catch(() => {});
     } catch (err) {
       console.error(err);
-      showToast("Speech recognition unavailable.", "error");
+      showToast("Audio processing failed. Activating backup voice scenario...", "error");
+      activateBackupVoiceCommand();
+    } finally {
+      setIsVoiceProcessing(false);
     }
+  };
+
+  const handleToggleVoiceListening = async () => {
+    if (isListening) {
+      if (speechRecognitionInstance) {
+        try {
+          speechRecognitionInstance.stop();
+        } catch (e) {}
+      }
+      if (mediaRecorderInstance && mediaRecorderInstance.state !== "inactive") {
+        try {
+          mediaRecorderInstance.stop();
+        } catch (e) {}
+      }
+      setIsListening(false);
+      showToast("Microphone stopped.", "info");
+      return;
+    }
+
+    let stream: MediaStream | null = null;
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+    } catch (err: any) {
+      console.warn("getUserMedia permission error:", err);
+      showToast("Microphone access blocked or unavailable. Backup scenario loaded!", "info");
+      activateBackupVoiceCommand(0);
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+        recognition.continuous = false;
+
+        recognition.onstart = () => {
+          setIsListening(true);
+          showToast("🎙️ Microphone active! Listening to your voice...", "info");
+        };
+
+        recognition.onresult = (event: any) => {
+          let finalTranscript = "";
+          let interimTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
+          }
+          const text = (finalTranscript || interimTranscript).trim();
+          if (text) {
+            setVoiceInput(text);
+          }
+        };
+
+        recognition.onerror = (e: any) => {
+          console.warn("Speech recognition error:", e.error);
+          setIsListening(false);
+          if (stream) {
+            stream.getTracks().forEach((track) => track.stop());
+          }
+          if (e.error === "no-speech") {
+            showToast("No speech heard. Fallback backup command loaded!", "info");
+            activateBackupVoiceCommand(0);
+          } else {
+            showToast(`Mic notice: ${e.error}. Backup command ready!`, "info");
+            activateBackupVoiceCommand(0);
+          }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+          if (stream) {
+            stream.getTracks().forEach((track) => track.stop());
+          }
+        };
+
+        setSpeechRecognitionInstance(recognition);
+        recognition.start();
+        return;
+      } catch (err) {
+        console.error("SpeechRecognition start error:", err);
+      }
+    }
+
+    if (stream && window.MediaRecorder) {
+      try {
+        const mediaRecorder = new MediaRecorder(stream);
+        const chunks: Blob[] = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          setIsListening(false);
+          stream?.getTracks().forEach((track) => track.stop());
+          const audioBlob = new Blob(chunks, { type: "audio/webm" });
+          if (chunks.length > 0) {
+            handleAudioBlobUpload(audioBlob);
+          } else {
+            activateBackupVoiceCommand(0);
+          }
+        };
+
+        setMediaRecorderInstance(mediaRecorder);
+        mediaRecorder.start();
+        setIsListening(true);
+        showToast("🎙️ Microphone recording (MediaRecorder). Speak now, tap Stop when done!", "info");
+        return;
+      } catch (recErr) {
+        console.error("MediaRecorder fallback error:", recErr);
+      }
+    }
+
+    setIsListening(false);
+    showToast("Microphone unavailable. Activated backup voice command!", "info");
+    activateBackupVoiceCommand(0);
   };
 
   // =========================================================
@@ -498,7 +674,8 @@ export default function App() {
   // =========================================================
 
   const handleCopyText = (text: string, label: string) => {
-    navigator.clipboard.writeText(text)
+    navigator.clipboard
+      .writeText(text)
       .then(() => showToast(`${label} copied to clipboard!`, "success"))
       .catch(() => showToast("Failed to copy to clipboard.", "error"));
   };
@@ -508,88 +685,47 @@ export default function App() {
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, "_blank");
   };
 
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-
-  const [newIngredient, setNewIngredient] = useState({
-    name: "",
-    category: "Vegetables",
-    quantity: "",
-    unit: "pcs",
-    expiryDate: "",
-  });
-
   // =========================================================
   // GREETING
   // =========================================================
 
   const getGreeting = (): Greeting => {
     const hour = new Date().getHours();
+    const firstName = user ? user.name.split(" ")[0] : "";
 
     if (hour >= 5 && hour < 12) {
       return {
-        title: user
-          ? `Good morning, ${user.name.split(" ")[0]} 👋`
-          : "Good morning 👋",
+        title: user ? `Good morning, ${firstName} 👋` : "Good morning 👋",
         subtitle: "What are we doing today?",
       };
     }
 
     if (hour >= 12 && hour < 17) {
       return {
-        title: user
-          ? `Good afternoon, ${user.name.split(" ")[0]} ☀️`
-          : "Good afternoon ☀️",
+        title: user ? `Good afternoon, ${firstName} ☀️` : "Good afternoon ☀️",
         subtitle: "What are we cooking today?",
       };
     }
 
     if (hour >= 17 && hour < 21) {
       return {
-        title: user
-          ? `Good evening, ${user.name.split(" ")[0]} 🌅`
-          : "Good evening 🌅",
+        title: user ? `Good evening, ${firstName} 🌅` : "Good evening 🌅",
         subtitle: "What are we having for dinner?",
       };
     }
 
     return {
-      title: user
-        ? `Good night, ${user.name.split(" ")[0]} 🌙`
-        : "Good night 🌙",
+      title: user ? `Good night, ${firstName} 🌙` : "Good night 🌙",
       subtitle: "Planning something for tomorrow?",
     };
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const greeting = useMemo(() => getGreeting(), [user]);
 
   // =========================================================
-  // GLOBAL TOAST NOTIFICATIONS
+  // APP / AUTH HANDLERS
   // =========================================================
-
-  const showToast = (message: string, type: ToastType = "info") => {
-    const id = Date.now() + Math.random();
-
-    setToasts((current) => [
-      ...current,
-      { id, message, type },
-    ]);
-
-    window.setTimeout(() => {
-      setToasts((current) =>
-        current.filter((toast) => toast.id !== id)
-      );
-    }, 3200);
-  };
-
-  const removeToast = (id: number) => {
-    setToasts((current) =>
-      current.filter((toast) => toast.id !== id)
-    );
-  };
 
   const handleGetStarted = () => {
     setInApp(true);
@@ -638,11 +774,9 @@ export default function App() {
       }
 
       try {
-        const response = await fetch("http://localhost:8001/api/register", {
+        const response = await fetch(`${API}/api/register`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name,
             email,
@@ -721,6 +855,10 @@ export default function App() {
       .join("");
   };
 
+  // =========================================================
+  // PANTRY HELPERS
+  // =========================================================
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -733,13 +871,14 @@ export default function App() {
 
   const isLowStock = (ingredient: Ingredient) => ingredient.quantity <= 2;
 
-  const expiringIngredients = ingredients.filter((ingredient) => isExpiringSoon(ingredient.expiryDate));
-  const lowStockIngredients = ingredients.filter((ingredient) => isLowStock(ingredient));
+  const expiringIngredients = ingredients.filter((i) => isExpiringSoon(i.expiryDate));
+  const lowStockIngredients = ingredients.filter((i) => isLowStock(i));
 
   const filteredIngredients = useMemo(() => {
     return ingredients.filter((ingredient) => {
       const matchesSearch = ingredient.name.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = selectedCategory === "All" || ingredient.category === selectedCategory;
+      const matchesCategory =
+        selectedCategory === "All" || ingredient.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
   }, [ingredients, search, selectedCategory]);
@@ -761,7 +900,14 @@ export default function App() {
 
     const payload = {
       name: newIngredient.name.trim(),
-      icon: newIngredient.category === "Vegetables" ? "🥕" : newIngredient.category === "Dairy" ? "🥛" : newIngredient.category === "Grains" ? "🍚" : "🥫",
+      icon:
+        newIngredient.category === "Vegetables"
+          ? "🥕"
+          : newIngredient.category === "Dairy"
+          ? "🥛"
+          : newIngredient.category === "Grains"
+          ? "🍚"
+          : "🥫",
       category: newIngredient.category,
       quantity: Number(newIngredient.quantity),
       unit: newIngredient.unit,
@@ -770,7 +916,7 @@ export default function App() {
     };
 
     try {
-      const response = await fetch("http://localhost:8001/api/ingredients", {
+      const response = await fetch(`${API}/api/ingredients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -779,18 +925,7 @@ export default function App() {
       if (!response.ok) throw new Error("Failed to save ingredient");
       const savedItem = await response.json();
 
-      setIngredients((current) => [
-        {
-          id: savedItem.id,
-          name: savedItem.name,
-          icon: savedItem.icon,
-          category: savedItem.category,
-          quantity: savedItem.quantity,
-          unit: savedItem.unit,
-          expiryDate: savedItem.expiry_date,
-        },
-        ...current,
-      ]);
+      setIngredients((current) => [mapIngredient(savedItem), ...current]);
 
       setNewIngredient({ name: "", category: "Vegetables", quantity: "", unit: "pcs", expiryDate: "" });
       setIsAddOpen(false);
@@ -801,8 +936,9 @@ export default function App() {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
 
     const formData = new FormData();
@@ -811,7 +947,7 @@ export default function App() {
     showToast("Analyzing grocery image with YOLOv8...", "info");
 
     try {
-      const response = await fetch("http://localhost:8001/api/scan-grocery", {
+      const response = await fetch(`${API}/api/scan-grocery`, {
         method: "POST",
         body: formData,
       });
@@ -820,25 +956,13 @@ export default function App() {
       const data = await response.json();
       showToast(`Scanned! Found ${data.items_found} items.`, "success");
 
-      const res = await fetch("http://localhost:8001/api/ingredients");
-      if (res.ok) {
-        const jsonList = await res.json();
-        setIngredients(jsonList.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          icon: item.icon || "📦",
-          category: item.category,
-          quantity: item.quantity,
-          unit: item.unit,
-          expiryDate: item.expiry_date,
-        })));
-      }
+      await refreshIngredients().catch(() => {});
     } catch (err) {
       console.error(err);
       showToast("Error scanning image.", "error");
     } finally {
       setIsScanning(false);
-      e.target.value = "";
+      input.value = "";
     }
   };
 
@@ -856,7 +980,7 @@ export default function App() {
     };
 
     try {
-      const response = await fetch("http://localhost:8001/api/meal-plans", {
+      const response = await fetch(`${API}/api/meal-plans`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -910,20 +1034,45 @@ export default function App() {
       <div className="kos-dashboard-divider" />
 
       {expiringIngredients.length > 0 ? (
-        <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "10px", padding: "16px", marginBottom: "20px", background: "rgba(255, 100, 100, 0.25)", border: "1px solid rgba(255, 100, 100, 0.5)" }}>
+        <div
+          className="kos-ingredient-card"
+          style={{
+            flexDirection: "column",
+            gap: "10px",
+            padding: "16px",
+            marginBottom: "20px",
+            background: "rgba(255, 100, 100, 0.25)",
+            border: "1px solid rgba(255, 100, 100, 0.5)",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ fontSize: "20px" }}>🚨</span>
             <h3 style={{ margin: 0, fontSize: "16px", color: "#fff" }}>Expiry Alert</h3>
           </div>
           <p style={{ margin: 0, fontSize: "13px", color: "#fff" }}>
-            You have <strong>{expiringIngredients.length}</strong> ingredient(s) expiring soon: {expiringIngredients.map(i => i.name).join(", ")}.
+            You have <strong>{expiringIngredients.length}</strong> ingredient(s) expiring soon:{" "}
+            {expiringIngredients.map((i) => i.name).join(", ")}.
           </p>
-          <button type="button" onClick={() => setActiveTab("recipes")} className="kos-modal-submit" style={{ padding: "6px 12px", width: "fit-content", margin: 0, fontSize: "12px" }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("recipes")}
+            className="kos-modal-submit"
+            style={{ padding: "6px 12px", width: "fit-content", margin: 0, fontSize: "12px" }}
+          >
             Generate AI Recipe →
           </button>
         </div>
       ) : (
-        <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "8px", padding: "14px", marginBottom: "20px", background: "rgba(255, 255, 255, 0.1)" }}>
+        <div
+          className="kos-ingredient-card"
+          style={{
+            flexDirection: "column",
+            gap: "8px",
+            padding: "14px",
+            marginBottom: "20px",
+            background: "rgba(255, 255, 255, 0.1)",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ fontSize: "18px" }}>✨</span>
             <h3 style={{ margin: 0, fontSize: "15px", color: "#fff" }}>All Pantry Items Fresh</h3>
@@ -952,26 +1101,53 @@ export default function App() {
           <button
             type="button"
             className="kos-add-button"
-            onClick={() => setIsVoiceModalOpen(true)}
-            title="Voice Inventory Logging (ElevenLabs Speech)"
-            style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}
+            onClick={() => {
+              setIsVoiceModalOpen(true);
+              if (!isListening) {
+                handleToggleVoiceListening();
+              }
+            }}
+            title={isListening ? "Microphone active (Listening...)" : "Voice Inventory Logging (Activate Microphone)"}
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "18px",
+              background: isListening ? "rgba(220, 38, 38, 0.9)" : undefined,
+              color: isListening ? "#ffffff" : undefined,
+              boxShadow: isListening ? "0 0 12px rgba(220, 38, 38, 0.7)" : undefined,
+              animation: isListening ? "kosBlink 1.2s infinite ease-in-out" : undefined,
+            }}
           >
-            🎙️
+            {isListening ? "🔴" : "🎙️"}
           </button>
           <button
             type="button"
             className="kos-add-button"
             onClick={fetchFreshnessAudit}
+            disabled={isFreshnessLoading}
             title="Deterministic Spoilage Engine Freshness Audit"
             style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}
           >
             🔬
           </button>
-          <label className="kos-add-button" title="Scan Grocery Image (YOLOv8)" style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: "40px", height: "40px", borderRadius: "50%", background: "rgba(255, 255, 255, 0.15)", border: "1px solid rgba(255, 255, 255, 0.3)", fontSize: "18px" }}>
+          <label
+            className="kos-add-button"
+            title="Scan Grocery Image (YOLOv8)"
+            style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", width: "40px", height: "40px", borderRadius: "50%", background: "rgba(255, 255, 255, 0.15)", border: "1px solid rgba(255, 255, 255, 0.3)", fontSize: "18px" }}
+          >
             📷
             <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageUpload} disabled={isScanning} />
           </label>
-          <button type="button" className="kos-add-button" onClick={() => setIsAddOpen(true)} style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>
+          <button
+            type="button"
+            className="kos-add-button"
+            onClick={() => setIsAddOpen(true)}
+            style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}
+          >
             +
           </button>
         </div>
@@ -1001,7 +1177,12 @@ export default function App() {
         <p className="kos-small-heading">CATEGORIES</p>
         <div className="kos-category-scroll">
           {categories.map((category) => (
-            <button type="button" key={category} onClick={() => setSelectedCategory(category)} className={`kos-category-button ${selectedCategory === category ? "is-selected" : ""}`}>
+            <button
+              type="button"
+              key={category}
+              onClick={() => setSelectedCategory(category)}
+              className={`kos-category-button ${selectedCategory === category ? "is-selected" : ""}`}
+            >
               {category}
             </button>
           ))}
@@ -1030,12 +1211,16 @@ export default function App() {
                   <div className="kos-ingredient-icon">{ingredient.icon}</div>
                   <div className="kos-ingredient-info">
                     <h3>{ingredient.name}</h3>
-                    <p>{ingredient.quantity} {ingredient.unit}</p>
+                    <p>
+                      {ingredient.quantity} {ingredient.unit}
+                    </p>
                     <small>{expiring ? "⚠️ Use soon" : `Expires ${formatDate(ingredient.expiryDate)}`}</small>
                   </div>
                   <div className="kos-ingredient-right">
                     {lowStock && <span className="kos-low-stock">Low</span>}
-                    <button type="button" onClick={() => deleteIngredient(ingredient.id)} className="kos-delete-button">×</button>
+                    <button type="button" onClick={() => deleteIngredient(ingredient.id)} className="kos-delete-button">
+                      ×
+                    </button>
                   </div>
                 </div>
               );
@@ -1142,13 +1327,20 @@ export default function App() {
         </section>
 
         {selectedExpiringItem && (
-          <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "14px", padding: "20px", marginTop: "20px", background: "rgba(255,255,255,0.15)" }}>
-            <h3 style={{ margin: 0, fontSize: "18px" }}>{recipeDashboardData?.title || `AI Recipe for: ${selectedExpiringItem}`}</h3>
+          <div
+            className="kos-ingredient-card"
+            style={{ flexDirection: "column", gap: "14px", padding: "20px", marginTop: "20px", background: "rgba(255,255,255,0.15)" }}
+          >
+            <h3 style={{ margin: 0, fontSize: "18px" }}>
+              {recipeDashboardData?.title || `AI Recipe for: ${selectedExpiringItem}`}
+            </h3>
             <p style={{ margin: 0, fontSize: "12px", opacity: 0.85 }}>
               Cuisine: <strong>{selectedCuisinePref}</strong> | Spices: <strong>{selectedSpicePref}</strong>
             </p>
             {recipeDashboardData && recipeDashboardData.recipe_text && (
-              <div style={{ background: "rgba(0,0,0,0.2)", padding: "14px", borderRadius: "8px", whiteSpace: "pre-line", fontSize: "13px", lineHeight: "1.5" }}>
+              <div
+                style={{ background: "rgba(0,0,0,0.2)", padding: "14px", borderRadius: "8px", whiteSpace: "pre-line", fontSize: "13px", lineHeight: "1.5" }}
+              >
                 {recipeDashboardData.recipe_text}
               </div>
             )}
@@ -1164,6 +1356,9 @@ export default function App() {
 
   const renderPlanner = () => {
     const currentDayMeals = mealPlans.filter((p) => p.day === selectedDay);
+    const planText =
+      `📅 KitchenOS Meal Plan (${selectedDay}):\n` +
+      currentDayMeals.map((m) => `- ${m.meal_type}: ${m.recipe_name}`).join("\n");
 
     return (
       <div className="kos-pantry-dashboard">
@@ -1177,11 +1372,7 @@ export default function App() {
             <button
               type="button"
               className="kos-add-button"
-              onClick={() => {
-                const text = `📅 KitchenOS Meal Plan (${selectedDay}):\n` + 
-                  currentDayMeals.map(m => `- ${m.meal_type}: ${m.recipe_name}`).join("\n");
-                handleCopyText(text, `Meal plan for ${selectedDay}`);
-              }}
+              onClick={() => handleCopyText(planText, `Meal plan for ${selectedDay}`)}
               title="Copy Meal Plan"
               style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
             >
@@ -1190,11 +1381,7 @@ export default function App() {
             <button
               type="button"
               className="kos-add-button"
-              onClick={() => {
-                const text = `📅 KitchenOS Meal Plan (${selectedDay}):\n` + 
-                  currentDayMeals.map(m => `- ${m.meal_type}: ${m.recipe_name}`).join("\n");
-                handleWhatsAppShare(text);
-              }}
+              onClick={() => handleWhatsAppShare(planText)}
               title="Share via WhatsApp"
               style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
             >
@@ -1205,13 +1392,17 @@ export default function App() {
 
         <div className="kos-category-scroll" style={{ margin: "15px 0" }}>
           {daysOfWeek.map((day) => (
-            <button type="button" key={day} onClick={() => setSelectedDay(day)} className={`kos-category-button ${selectedDay === day ? "is-selected" : ""}`}>
+            <button
+              type="button"
+              key={day}
+              onClick={() => setSelectedDay(day)}
+              className={`kos-category-button ${selectedDay === day ? "is-selected" : ""}`}
+            >
               {day}
             </button>
           ))}
         </div>
 
-        {/* AI Family Meal Planner Bar */}
         <div style={{ margin: "10px 0 16px 0" }}>
           <button
             type="button"
@@ -1226,32 +1417,29 @@ export default function App() {
         </div>
 
         {macroAnalytics && (
-          <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "10px", padding: "16px", marginBottom: "20px", background: "rgba(255, 255, 255, 0.85)" }}>
+          <div
+            className="kos-ingredient-card"
+            style={{ flexDirection: "column", gap: "10px", padding: "16px", marginBottom: "20px", background: "rgba(255, 255, 255, 0.85)" }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
               <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#5a2111" }}>📊 Weekly Family Macro Analytics</h3>
-              <span style={{ fontSize: "12px", color: "rgba(90,33,17,0.7)" }}>Targets Met: {macroAnalytics.macro_compliance_score || "100%"}</span>
+              <span style={{ fontSize: "12px", color: "rgba(90,33,17,0.7)" }}>
+                Targets Met: {macroAnalytics.macro_compliance_score || "100%"}
+              </span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(95px, 1fr))", gap: "8px", width: "100%" }}>
-              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Daily Avg</span>
-                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_calories || 2050} kcal</p>
-              </div>
-              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Protein</span>
-                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_protein_g || 115}g</p>
-              </div>
-              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Carbs</span>
-                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_carbs_g || 220}g</p>
-              </div>
-              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Fats</span>
-                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_fat_g || 65}g</p>
-              </div>
-              <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>Fiber</span>
-                <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{macroAnalytics.average_daily_fiber_g || 34}g</p>
-              </div>
+              {[
+                { label: "Daily Avg", value: `${macroAnalytics.average_daily_calories || 2050} kcal` },
+                { label: "Protein", value: `${macroAnalytics.average_daily_protein_g || 115}g` },
+                { label: "Carbs", value: `${macroAnalytics.average_daily_carbs_g || 220}g` },
+                { label: "Fats", value: `${macroAnalytics.average_daily_fat_g || 65}g` },
+                { label: "Fiber", value: `${macroAnalytics.average_daily_fiber_g || 34}g` },
+              ].map((m) => (
+                <div key={m.label} style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
+                  <span style={{ fontSize: "11px", color: "#5a2111", fontWeight: 600 }}>{m.label}</span>
+                  <p style={{ margin: "4px 0 0", fontSize: "15px", fontWeight: 800, color: "#5a2111" }}>{m.value}</p>
+                </div>
+              ))}
             </div>
             {macroAnalytics.dietary_notes && (
               <p style={{ margin: 0, fontSize: "12px", color: "rgba(90,33,17,0.8)", fontStyle: "italic" }}>
@@ -1297,7 +1485,7 @@ export default function App() {
           ) : (
             <div className="kos-ingredient-list">
               {currentDayMeals.map((meal, idx) => (
-                <div className="kos-ingredient-card" key={meal.id || idx}>
+                <div className="kos-ingredient-card" key={meal.id ?? idx}>
                   <div className="kos-ingredient-icon">
                     {meal.meal_type === "Breakfast" ? "🥞" : meal.meal_type === "Lunch" ? "🍲" : "🌙"}
                   </div>
@@ -1319,6 +1507,10 @@ export default function App() {
   // =========================================================
 
   const renderShopping = () => {
+    const shoppingText =
+      `🛒 KitchenOS Smart Shopping List:\n` +
+      (smartShopping?.shopping_list || []).map((i) => `- ${i.name} (${i.quantity} ${i.unit})`).join("\n");
+
     return (
       <div className="kos-pantry-dashboard">
         <section className="kos-page-heading">
@@ -1331,11 +1523,7 @@ export default function App() {
             <button
               type="button"
               className="kos-add-button"
-              onClick={() => {
-                const text = `🛒 KitchenOS Smart Shopping List:\n` + 
-                  (smartShopping?.shopping_list || []).map(i => `- ${i.name} (${i.quantity} ${i.unit})`).join("\n");
-                handleCopyText(text, "Shopping list");
-              }}
+              onClick={() => handleCopyText(shoppingText, "Shopping list")}
               title="Copy Shopping List"
               style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
             >
@@ -1344,24 +1532,29 @@ export default function App() {
             <button
               type="button"
               className="kos-add-button"
-              onClick={() => {
-                const text = `🛒 KitchenOS Smart Shopping List:\n` + 
-                  (smartShopping?.shopping_list || []).map(i => `- ${i.name} (${i.quantity} ${i.unit})`).join("\n");
-                handleWhatsAppShare(text);
-              }}
+              onClick={() => handleWhatsAppShare(shoppingText)}
               title="Share via WhatsApp"
               style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}
             >
               💬
             </button>
-            <button type="button" className="kos-add-button" onClick={fetchSmartShoppingList} title="Refresh List" style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>
+            <button
+              type="button"
+              className="kos-add-button"
+              onClick={fetchSmartShoppingList}
+              title="Refresh List"
+              style={{ width: "40px", height: "40px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}
+            >
               🔄
             </button>
           </div>
         </section>
 
         {smartShopping && smartShopping.proposed_dish && (
-          <div className="kos-ingredient-card" style={{ flexDirection: "column", gap: "8px", padding: "16px", margin: "16px 0", background: "rgba(255,255,255,0.15)" }}>
+          <div
+            className="kos-ingredient-card"
+            style={{ flexDirection: "column", gap: "8px", padding: "16px", margin: "16px 0", background: "rgba(255,255,255,0.15)" }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <span style={{ fontSize: "24px" }}>{smartShopping.proposed_dish.icon}</span>
               <div>
@@ -1387,12 +1580,18 @@ export default function App() {
           ) : (
             <div className="kos-ingredient-list">
               {smartShopping.shopping_list.map((item) => (
-                <div className="kos-ingredient-card" key={item.id} style={{ alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
+                <div
+                  className="kos-ingredient-card"
+                  key={item.id}
+                  style={{ alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}
+                >
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <div className="kos-ingredient-icon" style={{ fontSize: "22px" }}>📦</div>
                     <div className="kos-ingredient-info">
                       <h3 style={{ margin: 0, fontSize: "15px" }}>{item.name}</h3>
-                      <p style={{ margin: "2px 0 0", fontSize: "12px", opacity: 0.8 }}>{item.quantity} {item.unit} • {item.category}</p>
+                      <p style={{ margin: "2px 0 0", fontSize: "12px", opacity: 0.8 }}>
+                        {item.quantity} {item.unit} • {item.category}
+                      </p>
                     </div>
                   </div>
 
@@ -1411,7 +1610,7 @@ export default function App() {
                       display: "flex",
                       alignItems: "center",
                       gap: "6px",
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
                     }}
                   >
                     🛒 Buy on {item.store} →
@@ -1446,16 +1645,8 @@ export default function App() {
           style={{ flex: 1, minWidth: "220px", margin: 0, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
           onClick={async () => {
             showToast("Syncing expired inventory to Second Life Hub...", "info");
-            try {
-              const res = await fetch("http://localhost:8001/api/second-life/remedies?force_sync=true");
-              if (res.ok) {
-                const data = await res.json();
-                setSecondLifeRemedies(data);
-                showToast("Second Life Hub synced with latest expired goods!", "success");
-              }
-            } catch (e) {
-              showToast("Failed to sync Second Life Hub.", "error");
-            }
+            const ok = await fetchSecondLifeRemedies(true);
+            if (ok) showToast("Second Life Hub synced with latest expired goods!", "success");
           }}
         >
           <span>♻️</span>
@@ -1483,16 +1674,14 @@ export default function App() {
                   <div className="kos-ingredient-icon" style={{ fontSize: "24px" }}>{remedy.icon}</div>
                   <div className="kos-ingredient-info" style={{ flex: 1 }}>
                     <h3 style={{ margin: 0, fontSize: "16px" }}>{remedy.title}</h3>
-                    <p style={{ margin: "2px 0 0", fontSize: "12px", opacity: 0.85 }}>
-                      {remedy.description}
-                    </p>
+                    <p style={{ margin: "2px 0 0", fontSize: "12px", opacity: 0.85 }}>{remedy.description}</p>
                   </div>
                   <span style={{ background: "rgba(255,255,255,0.2)", padding: "4px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600 }}>
                     {remedy.category}
                   </span>
                 </div>
 
-                <div style={{ background: "rgba(0,0,0,0.2)", padding: "12px", borderRadius: "8px", fontSize: "12px", lineHeight: "1.5", whiteSpace: "pre-line", width: "100%" }}>
+                <div style={{ background: "rgba(0,0,0,0.2)", padding: "12px", borderRadius: "8px", fontSize: "12px", lineHeight: "1.5", width: "100%" }}>
                   <strong>Action Steps:</strong>
                   <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
                     {remedy.steps.map((step, idx) => (
@@ -1507,6 +1696,10 @@ export default function App() {
       </section>
     </div>
   );
+
+  // =========================================================
+  // PROFILE DASHBOARD
+  // =========================================================
 
   const renderProfileDashboard = () => {
     if (!user) {
@@ -1530,9 +1723,7 @@ export default function App() {
             <h1>{greeting.title}</h1>
             <p>Your personal kitchen dashboard.</p>
           </div>
-          <div className="kos-profile-avatar kos-profile-avatar-large">
-            {getInitials(user.name)}
-          </div>
+          <div className="kos-profile-avatar kos-profile-avatar-large">{getInitials(user.name)}</div>
         </section>
 
         <section className="kos-profile-card">
@@ -1550,6 +1741,10 @@ export default function App() {
       </div>
     );
   };
+
+  // =========================================================
+  // RENDER
+  // =========================================================
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden">
@@ -1596,7 +1791,14 @@ export default function App() {
           <div className="kos-app-content">
             <header className="kos-dashboard-header">
               <div>
-                <button type="button" className="kos-logo-button" onClick={() => { setActiveTab("home"); setShowProfileDashboard(false); }}>
+                <button
+                  type="button"
+                  className="kos-logo-button"
+                  onClick={() => {
+                    setActiveTab("home");
+                    setShowProfileDashboard(false);
+                  }}
+                >
                   KITCHENOS
                 </button>
                 <p>Smart Kitchen</p>
@@ -1658,12 +1860,20 @@ export default function App() {
                 <form onSubmit={handleAddIngredient}>
                   <label className="kos-modal-label">
                     Ingredient Name
-                    <input type="text" placeholder="e.g. Potatoes" value={newIngredient.name} onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })} />
+                    <input
+                      type="text"
+                      placeholder="e.g. Potatoes"
+                      value={newIngredient.name}
+                      onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })}
+                    />
                   </label>
 
                   <label className="kos-modal-label">
                     Category
-                    <select value={newIngredient.category} onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })}>
+                    <select
+                      value={newIngredient.category}
+                      onChange={(e) => setNewIngredient({ ...newIngredient, category: e.target.value })}
+                    >
                       {categories.filter((c) => c !== "All").map((c) => (
                         <option key={c} value={c}>{c}</option>
                       ))}
@@ -1673,12 +1883,20 @@ export default function App() {
                   <div className="kos-form-row">
                     <label className="kos-modal-label">
                       Quantity
-                      <input type="number" min="1" value={newIngredient.quantity} onChange={(e) => setNewIngredient({ ...newIngredient, quantity: e.target.value })} />
+                      <input
+                        type="number"
+                        min="1"
+                        value={newIngredient.quantity}
+                        onChange={(e) => setNewIngredient({ ...newIngredient, quantity: e.target.value })}
+                      />
                     </label>
 
                     <label className="kos-modal-label">
                       Unit
-                      <select value={newIngredient.unit} onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })}>
+                      <select
+                        value={newIngredient.unit}
+                        onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })}
+                      >
                         <option value="pcs">pcs</option>
                         <option value="kg">kg</option>
                         <option value="g">g</option>
@@ -1690,7 +1908,11 @@ export default function App() {
 
                   <label className="kos-modal-label">
                     Expiry Date
-                    <input type="date" value={newIngredient.expiryDate} onChange={(e) => setNewIngredient({ ...newIngredient, expiryDate: e.target.value })} />
+                    <input
+                      type="date"
+                      value={newIngredient.expiryDate}
+                      onChange={(e) => setNewIngredient({ ...newIngredient, expiryDate: e.target.value })}
+                    />
                   </label>
 
                   <button type="submit" className="kos-modal-submit">Add to Pantry</button>
@@ -1728,7 +1950,12 @@ export default function App() {
                     <>
                       <label className="kos-modal-label">
                         Confirm Password
-                        <input type="password" placeholder="Confirm Password" value={confirmPasswordInput} onChange={(e) => setConfirmPasswordInput(e.target.value)} />
+                        <input
+                          type="password"
+                          placeholder="Confirm Password"
+                          value={confirmPasswordInput}
+                          onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                        />
                       </label>
 
                       <label className="kos-modal-label">
@@ -1766,27 +1993,77 @@ export default function App() {
                   Hands-free natural speech updates. Log pantry additions, partial consumptions, or discards.
                 </p>
 
-                <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: "8px", marginBottom: "8px", flexWrap: "wrap", alignItems: "center" }}>
                   <button
                     type="button"
                     className="kos-add-button"
-                    onClick={handleStartVoiceListening}
-                    style={{ borderRadius: "10px", width: "auto", height: "auto", padding: "8px 14px", fontSize: "13px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}
+                    onClick={handleToggleVoiceListening}
+                    style={{
+                      borderRadius: "10px",
+                      width: "auto",
+                      height: "auto",
+                      padding: "8px 16px",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      background: isListening ? "rgba(220, 38, 38, 0.9)" : "#5a2111",
+                      color: "#ffffff",
+                      boxShadow: isListening ? "0 0 12px rgba(220, 38, 38, 0.7)" : undefined,
+                      animation: isListening ? "kosBlink 1.2s infinite ease-in-out" : undefined,
+                    }}
                   >
-                    <span>🎙️</span>
-                    <span>Tap to Speak</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="kos-category-button is-selected"
-                    onClick={() => setVoiceInput("Hey Kitchen OS, I just used half the cottage cheese and put 200g of cooked dal in the fridge")}
-                    style={{ fontSize: "11px", padding: "6px 10px" }}
-                  >
-                    Quick Sample
+                    <span>{isListening ? "⏹️" : "🎙️"}</span>
+                    <span>{isListening ? "Stop Recording (Listening...)" : "Activate Microphone (Tap to Speak)"}</span>
                   </button>
                 </div>
 
-                <form onSubmit={(e) => { e.preventDefault(); handleVoiceCommand(voiceInput); }}>
+                {isListening && (
+                  <div style={{ padding: "6px 12px", marginBottom: "10px", background: "rgba(220, 38, 38, 0.1)", borderRadius: "8px", border: "1px solid rgba(220, 38, 38, 0.3)", textAlign: "center" }}>
+                    <p style={{ margin: 0, fontSize: "12px", color: "#b91c1c", fontWeight: 700, animation: "kosBlink 1.2s infinite" }}>
+                      🔴 Microphone is actively listening. Speak your kitchen update now!
+                    </p>
+                  </div>
+                )}
+
+                {/* HARDCODED BACKUP SCENARIOS */}
+                <div style={{ margin: "10px 0 14px", width: "100%", padding: "10px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", border: "1px dashed rgba(90, 33, 17, 0.25)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#5a2111", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      ⚡ 1-Click Hardcoded Backup Scenarios
+                    </span>
+                    <span style={{ fontSize: "10px", color: "rgba(90, 33, 17, 0.7)" }}>(Guaranteed offline fallback)</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {HARDCODED_VOICE_BACKUPS.map((backup, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        className="kos-category-button"
+                        onClick={() => activateBackupVoiceCommand(idx)}
+                        style={{
+                          fontSize: "11px",
+                          padding: "5px 10px",
+                          borderRadius: "6px",
+                          border: voiceInput === backup.text ? "1.5px solid #5a2111" : "1px solid rgba(90, 33, 17, 0.15)",
+                          background: voiceInput === backup.text ? "rgba(90, 33, 17, 0.15)" : "#ffffff",
+                          color: "#5a2111",
+                          fontWeight: voiceInput === backup.text ? 700 : 500,
+                        }}
+                      >
+                        {backup.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleVoiceCommand(voiceInput);
+                  }}
+                >
                   <label className="kos-modal-label">
                     Natural Language Command
                     <textarea
@@ -1804,7 +2081,7 @@ export default function App() {
                         fontFamily: "inherit",
                         fontSize: "13px",
                         resize: "vertical",
-                        boxSizing: "border-box"
+                        boxSizing: "border-box",
                       }}
                     />
                   </label>
@@ -1841,17 +2118,22 @@ export default function App() {
                     <p style={{ margin: "0 0 8px" }}>{lastVoiceResponse.natural_summary}</p>
                     {lastVoiceResponse.added_items && lastVoiceResponse.added_items.length > 0 && (
                       <p style={{ margin: "2px 0", fontSize: "12px" }}>
-                        ✅ <strong>Added:</strong> {lastVoiceResponse.added_items.map((i: any) => `${i.quantity} ${i.unit} ${i.name}`).join(", ")}
+                        ✅ <strong>Added:</strong>{" "}
+                        {lastVoiceResponse.added_items.map((i: any) => `${i.quantity} ${i.unit} ${i.name}`).join(", ")}
                       </p>
                     )}
                     {lastVoiceResponse.consumed_items && lastVoiceResponse.consumed_items.length > 0 && (
                       <p style={{ margin: "2px 0", fontSize: "12px" }}>
-                        🍳 <strong>Consumed:</strong> {lastVoiceResponse.consumed_items.map((i: any) => `${i.percentage_used ? i.percentage_used + '% of' : i.amount_used} ${i.name}`).join(", ")}
+                        🍳 <strong>Consumed:</strong>{" "}
+                        {lastVoiceResponse.consumed_items
+                          .map((i: any) => `${i.percentage_used ? i.percentage_used + "% of" : i.amount_used} ${i.name}`)
+                          .join(", ")}
                       </p>
                     )}
                     {lastVoiceResponse.discarded_items && lastVoiceResponse.discarded_items.length > 0 && (
                       <p style={{ margin: "2px 0", fontSize: "12px" }}>
-                        🗑️ <strong>Discarded:</strong> {lastVoiceResponse.discarded_items.map((i: any) => i.name).join(", ")}
+                        🗑️ <strong>Discarded:</strong>{" "}
+                        {lastVoiceResponse.discarded_items.map((i: any) => i.name).join(", ")}
                       </p>
                     )}
                   </div>
@@ -1863,7 +2145,11 @@ export default function App() {
           {/* DETERMINISTIC SPOILAGE ENGINE FRESHNESS MODAL */}
           {isFreshnessModalOpen && (
             <div className="kos-auth-backdrop" onClick={() => setIsFreshnessModalOpen(false)}>
-              <div className="kos-auth-modal" style={{ maxWidth: "600px", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+              <div
+                className="kos-auth-modal"
+                style={{ maxWidth: "600px", maxHeight: "85vh", overflowY: "auto" }}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <button type="button" className="kos-auth-close" onClick={() => setIsFreshnessModalOpen(false)}>×</button>
                 <div className="kos-modal-icon">🔬</div>
                 <h2>Deterministic Spoilage Engine</h2>
@@ -1873,7 +2159,6 @@ export default function App() {
 
                 {freshnessAudit ? (
                   <div>
-                    {/* Metrics Grid */}
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "16px" }}>
                       <div style={{ padding: "8px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", textAlign: "center" }}>
                         <span style={{ fontSize: "10px", color: "#5a2111", fontWeight: 700 }}>AVG FRESHNESS</span>
@@ -1893,45 +2178,51 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Freshness Item List */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      {freshnessAudit.items && freshnessAudit.items.map((item: any, idx: number) => {
-                        const pct = item.freshness_percentage ?? 100;
-                        const isExp = item.countdown?.is_expired;
-                        const barColor = isExp ? "#b91c1c" : pct < 35 ? "#dc2626" : pct < 70 ? "#d97706" : "#16a34a";
-                        return (
-                          <div key={idx} style={{ padding: "10px 14px", background: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(90, 33, 17, 0.12)", borderRadius: "8px" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                <span style={{ fontSize: "18px" }}>{item.icon || "📦"}</span>
-                                <div>
-                                  <strong style={{ fontSize: "13px", color: "#5a2111" }}>{item.name}</strong>
-                                  <span style={{ fontSize: "11px", color: "rgba(90, 33, 17, 0.6)", marginLeft: "6px" }}>({item.quantity} {item.unit})</span>
+                      {freshnessAudit.items &&
+                        freshnessAudit.items.map((item: any, idx: number) => {
+                          const pct = item.freshness_percentage ?? 100;
+                          const isExp = item.countdown?.is_expired;
+                          const barColor = isExp ? "#b91c1c" : pct < 35 ? "#dc2626" : pct < 70 ? "#d97706" : "#16a34a";
+                          return (
+                            <div
+                              key={idx}
+                              style={{ padding: "10px 14px", background: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(90, 33, 17, 0.12)", borderRadius: "8px" }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <span style={{ fontSize: "18px" }}>{item.icon || "📦"}</span>
+                                  <div>
+                                    <strong style={{ fontSize: "13px", color: "#5a2111" }}>{item.name}</strong>
+                                    <span style={{ fontSize: "11px", color: "rgba(90, 33, 17, 0.6)", marginLeft: "6px" }}>
+                                      ({item.quantity} {item.unit})
+                                    </span>
+                                  </div>
                                 </div>
+                                <span style={{ fontSize: "12px", fontWeight: 700, color: barColor }}>
+                                  {isExp ? "Expired" : `${pct}% Fresh`}
+                                </span>
                               </div>
-                              <span style={{ fontSize: "12px", fontWeight: 700, color: barColor }}>
-                                {isExp ? "Expired" : `${pct}% Fresh`}
-                              </span>
-                            </div>
 
-                            {/* Decay Progress Bar */}
-                            <div style={{ width: "100%", height: "6px", background: "rgba(0,0,0,0.08)", borderRadius: "3px", overflow: "hidden", marginBottom: "6px" }}>
-                              <div style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: "100%", background: barColor, borderRadius: "3px", transition: "width 0.3s" }} />
-                            </div>
+                              <div style={{ width: "100%", height: "6px", background: "rgba(0,0,0,0.08)", borderRadius: "3px", overflow: "hidden", marginBottom: "6px" }}>
+                                <div
+                                  style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: "100%", background: barColor, borderRadius: "3px", transition: "width 0.3s" }}
+                                />
+                              </div>
 
-                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "rgba(90, 33, 17, 0.75)" }}>
-                              <span>⏱️ {item.countdown?.display || (isExp ? "Expired" : "Fresh")}</span>
-                              <span>📍 {item.storage_location || "pantry"}</span>
-                            </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "rgba(90, 33, 17, 0.75)" }}>
+                                <span>⏱️ {item.countdown?.display || (isExp ? "Expired" : "Fresh")}</span>
+                                <span>📍 {item.storage_location || "pantry"}</span>
+                              </div>
 
-                            {item.storage_tip && (
-                              <p style={{ margin: "4px 0 0", fontSize: "11px", color: "rgba(90, 33, 17, 0.85)", fontStyle: "italic" }}>
-                                💡 {item.storage_tip}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
+                              {item.storage_tip && (
+                                <p style={{ margin: "4px 0 0", fontSize: "11px", color: "rgba(90, 33, 17, 0.85)", fontStyle: "italic" }}>
+                                  💡 {item.storage_tip}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 ) : (
@@ -1945,6 +2236,7 @@ export default function App() {
                     type="button"
                     className="kos-modal-submit"
                     onClick={fetchFreshnessAudit}
+                    disabled={isFreshnessLoading}
                     style={{ flex: 1, margin: 0 }}
                   >
                     🔄 Recalculate Decay Timelines

@@ -128,7 +128,7 @@ Respond ONLY with valid, raw JSON (no markdown backticks, no code block) matchin
             "action": "CONSUME",
             "item_name": target,
             "quantity": 0.5,
-            "is_percentage": true,
+            "is_percentage": True,
             "unit": "proportion",
             "storage_location": "refrigerator"
         })
@@ -150,7 +150,7 @@ Respond ONLY with valid, raw JSON (no markdown backticks, no code block) matchin
             "action": "ADD",
             "item_name": item,
             "quantity": qty,
-            "is_percentage": false,
+            "is_percentage": False,
             "unit": unit,
             "storage_location": loc
         })
@@ -160,7 +160,7 @@ Respond ONLY with valid, raw JSON (no markdown backticks, no code block) matchin
             "action": "INFO",
             "item_name": "General",
             "quantity": 1.0,
-            "is_percentage": false,
+            "is_percentage": False,
             "unit": "pcs",
             "storage_location": "pantry"
         })

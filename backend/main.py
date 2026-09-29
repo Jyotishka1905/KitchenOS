@@ -13,6 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from database import engine, get_db, Base
 import models
 import schemas
+from seed_db import seed_database
 
 # Feature Services
 from spoilage_engine import (
@@ -105,7 +106,13 @@ def check_expiring_pantry_alarms():
         print(f"Alarm scheduler error: {e}")
 
 @app.on_event("startup")
-def start_scheduler():
+def start_scheduler_and_seed():
+    # Automatically seed database from CSV on startup
+    try:
+        seed_database()
+    except Exception as e:
+        print(f"Startup CSV seeding error: {e}")
+
     if not scheduler.running:
         scheduler.add_job(check_expiring_pantry_alarms, 'interval', hours=12)
         scheduler.start()
