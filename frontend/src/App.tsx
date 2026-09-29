@@ -2,6 +2,7 @@ import {
   useMemo,
   useState,
   useEffect,
+  useRef,
   type FormEvent,
   type ChangeEvent,
 } from "react";
@@ -185,14 +186,16 @@ export default function App() {
   const [smartShopping, setSmartShopping] = useState<SmartShoppingData | null>(null);
 
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
-  const [voiceInput, setVoiceInput] = useState(
-    "Hey Kitchen OS, I just used half the cottage cheese and put 200g of cooked dal in the fridge"
-  );
+  const [voiceInput, setVoiceInput] = useState("");
+  const [interimSpokenText, setInterimSpokenText] = useState("");
   const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speechRecognitionInstance, setSpeechRecognitionInstance] = useState<any | null>(null);
   const [mediaRecorderInstance, setMediaRecorderInstance] = useState<MediaRecorder | null>(null);
   const [lastVoiceResponse, setLastVoiceResponse] = useState<any | null>(null);
+
+  const recognitionRef = useRef<any>(null);
+  const silenceTimerRef = useRef<any>(null);
 
   const HARDCODED_VOICE_BACKUPS = [
     {
@@ -613,21 +616,53 @@ export default function App() {
     }
   };
 
-  const handleToggleVoiceListening = () => {
+  const stopVoiceListening = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
+    }
+    if (speechRecognitionInstance) {
+      try {
+        speechRecognitionInstance.stop();
+      } catch (e) {}
+      setSpeechRecognitionInstance(null);
+    }
+    if (mediaRecorderInstance && mediaRecorderInstance.state !== "inactive") {
+      try {
+        mediaRecorderInstance.stop();
+      } catch (e) {}
+    }
+    setIsListening(false);
+  };
+
+  const handleToggleVoiceListening = async () => {
     if (isListening) {
-      if (speechRecognitionInstance) {
-        try {
-          speechRecognitionInstance.stop();
-        } catch (e) {}
-      }
-      if (mediaRecorderInstance && mediaRecorderInstance.state !== "inactive") {
-        try {
-          mediaRecorderInstance.stop();
-        } catch (e) {}
-      }
-      setIsListening(false);
+      stopVoiceListening();
       showToast("Microphone stopped.", "info");
+      if (voiceInput.trim()) {
+        handleVoiceCommand(voiceInput.trim());
+      }
       return;
+    }
+
+    // Explicitly prompt for mic permission via getUserMedia
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (permErr: any) {
+        console.warn("Microphone permission check:", permErr);
+        if (permErr.name === "NotAllowedError" || permErr.name === "PermissionDeniedError") {
+          showToast("🔒 Microphone permission blocked. Please click the lock icon in your address bar and allow Microphone.", "error");
+          return;
+        }
+      }
     }
 
     const SpeechRecognition =
@@ -636,55 +671,78 @@ export default function App() {
     if (SpeechRecognition) {
       try {
         const recognition = new SpeechRecognition();
-        recognition.lang = "en-US";
+        recognition.lang = (navigator.language && navigator.language.startsWith("en")) ? navigator.language : "en-US";
         recognition.interimResults = true;
         recognition.maxAlternatives = 1;
-        recognition.continuous = false;
+        recognition.continuous = true;
 
-        let capturedTranscript = "";
+        let accumulatedFinal = "";
 
         recognition.onstart = () => {
           setIsListening(true);
-          capturedTranscript = "";
+          setInterimSpokenText("");
           showToast("🎙️ Microphone active! Listening to your voice...", "info");
         };
 
         recognition.onresult = (event: any) => {
-          let currentTranscript = "";
-          for (let i = 0; i < event.results.length; ++i) {
-            currentTranscript += event.results[i][0].transcript;
+          let interimText = "";
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              accumulatedFinal += (accumulatedFinal ? " " : "") + transcript;
+            } else {
+              interimText += transcript;
+            }
           }
-          const text = currentTranscript.trim();
-          if (text) {
-            capturedTranscript = text;
-            setVoiceInput(text);
+
+          const currentSpoken = (accumulatedFinal + (interimText ? " " + interimText : "")).trim();
+          if (currentSpoken) {
+            setVoiceInput(currentSpoken);
+            setInterimSpokenText(currentSpoken);
+
+            // Silence timer: if 2.2s pass with no new speech, auto-stop and process!
+            if (silenceTimerRef.current) {
+              clearTimeout(silenceTimerRef.current);
+            }
+            silenceTimerRef.current = window.setTimeout(() => {
+              if (recognitionRef.current) {
+                try {
+                  recognitionRef.current.stop();
+                } catch (e) {}
+              }
+            }, 2200);
           }
         };
 
         recognition.onerror = (e: any) => {
           console.warn("Speech recognition error:", e.error);
-          setIsListening(false);
           if (e.error === "no-speech") {
-            showToast("No speech heard. Speak closer to mic or tap an example below.", "info");
-          } else if (e.error === "network" || e.error === "service-not-allowed") {
-            showToast("Speech recognition network notice. Falling back to audio recording...", "info");
-            startMediaRecorderFallback();
-          } else if (e.error === "not-allowed") {
+            // Keep listening in continuous mode
+            return;
+          }
+          setIsListening(false);
+          if (e.error === "not-allowed") {
             showToast("Microphone permission blocked in browser. Please allow microphone access.", "error");
+          } else if (e.error === "network") {
+            showToast("Speech service notice. You can tap any 1-click example below to test!", "info");
           } else {
-            showToast(`Mic notice: ${e.error}.`, "info");
+            showToast(`Voice notice: ${e.error}.`, "info");
           }
         };
 
         recognition.onend = () => {
           setIsListening(false);
-          const finalPrompt = capturedTranscript.trim();
-          if (finalPrompt) {
-            // Automatically process the recognized voice command!
-            handleVoiceCommand(finalPrompt);
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
+          const textToProcess = (accumulatedFinal || voiceInput).trim();
+          if (textToProcess) {
+            handleVoiceCommand(textToProcess);
           }
         };
 
+        recognitionRef.current = recognition;
         setSpeechRecognitionInstance(recognition);
         recognition.start();
         return;
@@ -1057,6 +1115,76 @@ export default function App() {
           <strong>SHOPPING</strong>
         </button>
       </section>
+
+      {/* HANDS-FREE VOICE ASSISTANT CARD */}
+      <div
+        className="kos-ingredient-card"
+        style={{
+          marginTop: "16px",
+          padding: "14px 16px",
+          background: "rgba(255, 255, 255, 0.95)",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxShadow: "0 4px 16px rgba(90, 33, 17, 0.1)",
+          borderRadius: "14px",
+          border: "1px solid rgba(90, 33, 17, 0.15)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              width: "44px",
+              height: "44px",
+              borderRadius: "50%",
+              background: isListening ? "rgba(220, 38, 38, 0.9)" : "#5a2111",
+              color: "#ffffff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "22px",
+              animation: isListening ? "kosBlink 1.2s infinite ease-in-out" : undefined,
+              boxShadow: isListening ? "0 0 12px rgba(220, 38, 38, 0.7)" : undefined,
+            }}
+          >
+            {isListening ? "🔴" : "🎙️"}
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#5a2111" }}>
+              Voice Kitchen Assistant
+            </h3>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(90, 33, 17, 0.75)" }}>
+              {isListening ? "Listening to your voice now..." : 'Tap to speak: "add cucumber", "add egg"...'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setIsVoiceModalOpen(true);
+            if (!isListening) {
+              handleToggleVoiceListening();
+            }
+          }}
+          style={{
+            margin: 0,
+            padding: "8px 16px",
+            fontSize: "12px",
+            fontWeight: 700,
+            borderRadius: "20px",
+            border: "none",
+            background: isListening ? "#dc2626" : "#5a2111",
+            color: "#ffffff",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            boxShadow: "0 2px 6px rgba(90, 33, 17, 0.25)",
+          }}
+        >
+          <span>{isListening ? "⏹️ Stop" : "🎙️ Tap to Speak"}</span>
+        </button>
+      </div>
 
       <div className="kos-dashboard-divider" />
 
@@ -2020,39 +2148,61 @@ export default function App() {
                   Hands-free natural speech updates. Log pantry additions, partial consumptions, or discards.
                 </p>
 
-                <div style={{ display: "flex", gap: "8px", marginBottom: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ margin: "0 0 14px", display: "flex", flexDirection: "column", gap: "10px" }}>
                   <button
                     type="button"
-                    className="kos-add-button"
                     onClick={handleToggleVoiceListening}
                     style={{
-                      borderRadius: "10px",
-                      width: "auto",
-                      height: "auto",
-                      padding: "8px 16px",
-                      fontSize: "13px",
+                      width: "100%",
+                      padding: "14px 20px",
+                      borderRadius: "14px",
+                      fontSize: "15px",
                       fontWeight: 700,
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
-                      background: isListening ? "rgba(220, 38, 38, 0.9)" : "#5a2111",
+                      justifyContent: "center",
+                      gap: "10px",
+                      cursor: "pointer",
+                      border: "none",
+                      background: isListening
+                        ? "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)"
+                        : "linear-gradient(135deg, #5a2111 0%, #7d301b 100%)",
                       color: "#ffffff",
-                      boxShadow: isListening ? "0 0 12px rgba(220, 38, 38, 0.7)" : undefined,
+                      boxShadow: isListening
+                        ? "0 0 20px rgba(220, 38, 38, 0.6)"
+                        : "0 4px 14px rgba(90, 33, 17, 0.25)",
+                      transition: "all 0.2s ease",
                       animation: isListening ? "kosBlink 1.2s infinite ease-in-out" : undefined,
                     }}
                   >
-                    <span>{isListening ? "⏹️" : "🎙️"}</span>
-                    <span>{isListening ? "Stop Recording (Listening...)" : "Activate Microphone (Tap to Speak)"}</span>
+                    <span style={{ fontSize: "20px" }}>{isListening ? "⏹️" : "🎙️"}</span>
+                    <span>
+                      {isListening
+                        ? "Stop & Process Voice (Listening...)"
+                        : "Tap to Speak Voice Command"}
+                    </span>
                   </button>
-                </div>
 
-                {isListening && (
-                  <div style={{ padding: "6px 12px", marginBottom: "10px", background: "rgba(220, 38, 38, 0.1)", borderRadius: "8px", border: "1px solid rgba(220, 38, 38, 0.3)", textAlign: "center" }}>
-                    <p style={{ margin: 0, fontSize: "12px", color: "#b91c1c", fontWeight: 700, animation: "kosBlink 1.2s infinite" }}>
-                      🔴 Microphone is actively listening. Speak your kitchen update now!
-                    </p>
-                  </div>
-                )}
+                  {isListening && (
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        background: "rgba(220, 38, 38, 0.08)",
+                        borderRadius: "10px",
+                        border: "1.5px solid rgba(220, 38, 38, 0.4)",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                        <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "50%", background: "#dc2626", animation: "kosBlink 1s infinite" }} />
+                        <strong style={{ fontSize: "13px", color: "#dc2626" }}>Microphone is actively hearing your voice!</strong>
+                      </div>
+                      <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#5a2111", fontStyle: "italic" }}>
+                        {voiceInput ? `Hearing: "${voiceInput}"` : 'Say e.g. "add cucumber" or "add egg"...'}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 {/* 1-CLICK VOICE COMMAND EXAMPLES */}
                 <div style={{ margin: "10px 0 14px", width: "100%", padding: "10px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", border: "1px dashed rgba(90, 33, 17, 0.25)" }}>
@@ -2099,7 +2249,7 @@ export default function App() {
                     Natural Language Command
                     <textarea
                       rows={3}
-                      placeholder='e.g., "Used half the paneer, added 1kg basmati rice, and threw away spoiled milk"'
+                      placeholder='Speak above or type e.g. "add cucumber", "add egg", "used half the milk"'
                       value={voiceInput}
                       onChange={(e) => setVoiceInput(e.target.value)}
                       style={{
