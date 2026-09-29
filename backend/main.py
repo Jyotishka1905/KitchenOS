@@ -490,10 +490,11 @@ def process_voice_command(
 async def process_voice_audio_file(
     file: UploadFile = File(...),
     user_id: str = Form("default_user"),
+    fallback_text: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     audio_bytes = await file.read()
-    transcription = "Hey Kitchen OS, I just used half the cottage cheese and put 200g of cooked dal in the fridge"
+    transcription = (fallback_text or "").strip()
     
     api_key = os.getenv("GEMINI_API_KEY")
     if api_key and len(audio_bytes) > 100:
@@ -513,6 +514,17 @@ async def process_voice_audio_file(
                 transcription = response.text.strip()
         except Exception as e:
             print(f"Gemini audio STT error: {e}")
+
+    if not transcription:
+        return {
+            "status": "warning",
+            "transcribed_command": "",
+            "actions_parsed": [],
+            "database_updates": [],
+            "confirmation_text": "Voice recording received. Please speak clearly into your microphone.",
+            "audio_base64": None,
+            "voice_synthesized": False
+        }
 
     result = process_voice_logging_workflow(
         command_text=transcription,

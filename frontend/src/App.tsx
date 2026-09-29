@@ -196,31 +196,31 @@ export default function App() {
 
   const HARDCODED_VOICE_BACKUPS = [
     {
-      label: "🧀 Half Cottage Cheese & 200g Dal",
-      text: "Hey Kitchen OS, I just used half the cottage cheese and put 200g of cooked dal in the fridge",
+      label: "🥒 Add 2 Cucumbers to Fridge",
+      text: "Add 2 cucumbers to the fridge",
+    },
+    {
+      label: "🥚 Add 6 Eggs to Refrigerator",
+      text: "Add 6 eggs to the refrigerator",
+    },
+    {
+      label: "🥛 Used Half the Milk",
+      text: "Used half the milk",
     },
     {
       label: "🍚 Added 1kg Rice & 500g Paneer",
       text: "Added 1kg basmati rice and 500g paneer to the pantry",
     },
     {
-      label: "🥛 Used 3 Tomatoes & Discarded Milk",
-      text: "I used 3 tomatoes and threw away the spoiled milk",
-    },
-    {
-      label: "🥚 Put 6 Eggs & 500ml Curd in Fridge",
-      text: "Put 6 eggs and 500ml fresh curd in the refrigerator",
-    },
-    {
-      label: "🥦 Cooked Sabzi & Atta Roti",
-      text: "Used 200g atta to make rotis and stored remaining cooked sabzi in fridge",
+      label: "🍅 Used 3 Tomatoes & Discarded Bread",
+      text: "I used 3 tomatoes and threw away the spoiled bread",
     },
   ];
 
   const activateBackupVoiceCommand = (index = 0) => {
     const selected = HARDCODED_VOICE_BACKUPS[index] || HARDCODED_VOICE_BACKUPS[0];
     setVoiceInput(selected.text);
-    showToast(`⚡ Backup voice scenario loaded: "${selected.label}"`, "success");
+    showToast(`⚡ Loaded voice example: "${selected.label}"`, "info");
   };
 
   const [isFreshnessModalOpen, setIsFreshnessModalOpen] = useState(false);
@@ -504,9 +504,13 @@ export default function App() {
     }
     try {
       window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
+      utterance.volume = 1.0;
       utterance.lang = "en-US";
 
       const voices = window.speechSynthesis.getVoices();
@@ -546,6 +550,9 @@ export default function App() {
       const formData = new FormData();
       formData.append("file", audioBlob, "kitchen_command.webm");
       formData.append("user_id", user?.email || "default_user");
+      if (voiceInput.trim()) {
+        formData.append("fallback_text", voiceInput.trim());
+      }
 
       const res = await fetch(`${API}/api/voice/process-audio`, {
         method: "POST",
@@ -555,18 +562,17 @@ export default function App() {
       if (!res.ok) throw new Error("Audio processing failed");
       const data = await res.json();
       setLastVoiceResponse(data);
-      if (data.command_text) {
-        setVoiceInput(data.command_text);
+      if (data.command_text || data.transcribed_command) {
+        setVoiceInput(data.command_text || data.transcribed_command);
       }
-      const spokenText = data.confirmation_text || "Inventory updated via audio recording!";
-      showToast(spokenText, "success");
+      const spokenText = data.confirmation_text || "Inventory updated!";
+      showToast(spokenText, data.status === "warning" ? "info" : "success");
       speakVoiceResponse(spokenText, data.audio_base64);
 
       await refreshIngredients().catch(() => {});
     } catch (err) {
       console.error(err);
-      showToast("Audio processing failed. Activating backup voice scenario...", "error");
-      activateBackupVoiceCommand(0);
+      showToast("Audio processing failed. You can type or tap a preset below.", "error");
     } finally {
       setIsVoiceProcessing(false);
     }
@@ -574,8 +580,7 @@ export default function App() {
 
   const startMediaRecorderFallback = async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showToast("Microphone hardware unavailable. Loaded backup scenario!", "info");
-      activateBackupVoiceCommand(0);
+      showToast("Microphone hardware unavailable in browser.", "error");
       return;
     }
 
@@ -594,8 +599,6 @@ export default function App() {
         const audioBlob = new Blob(chunks, { type: "audio/webm" });
         if (chunks.length > 0) {
           handleAudioBlobUpload(audioBlob);
-        } else {
-          activateBackupVoiceCommand(0);
         }
       };
 
@@ -606,8 +609,7 @@ export default function App() {
     } catch (recErr) {
       console.error("MediaRecorder fallback error:", recErr);
       setIsListening(false);
-      showToast("Microphone access blocked. Loaded backup scenario!", "info");
-      activateBackupVoiceCommand(0);
+      showToast("Microphone access blocked. Please allow mic permission.", "error");
     }
   };
 
@@ -639,8 +641,11 @@ export default function App() {
         recognition.maxAlternatives = 1;
         recognition.continuous = false;
 
+        let capturedTranscript = "";
+
         recognition.onstart = () => {
           setIsListening(true);
+          capturedTranscript = "";
           showToast("🎙️ Microphone active! Listening to your voice...", "info");
         };
 
@@ -651,6 +656,7 @@ export default function App() {
           }
           const text = currentTranscript.trim();
           if (text) {
+            capturedTranscript = text;
             setVoiceInput(text);
           }
         };
@@ -659,21 +665,24 @@ export default function App() {
           console.warn("Speech recognition error:", e.error);
           setIsListening(false);
           if (e.error === "no-speech") {
-            showToast("No speech heard. Speak closer to mic or tap backup preset.", "info");
+            showToast("No speech heard. Speak closer to mic or tap an example below.", "info");
           } else if (e.error === "network" || e.error === "service-not-allowed") {
-            showToast("Speech service error. Falling back to audio recording...", "info");
+            showToast("Speech recognition network notice. Falling back to audio recording...", "info");
             startMediaRecorderFallback();
           } else if (e.error === "not-allowed") {
-            showToast("Microphone permission blocked in browser. Loaded backup preset!", "info");
-            activateBackupVoiceCommand(0);
+            showToast("Microphone permission blocked in browser. Please allow microphone access.", "error");
           } else {
-            showToast(`Mic notice: ${e.error}. Backup command ready!`, "info");
-            activateBackupVoiceCommand(0);
+            showToast(`Mic notice: ${e.error}.`, "info");
           }
         };
 
         recognition.onend = () => {
           setIsListening(false);
+          const finalPrompt = capturedTranscript.trim();
+          if (finalPrompt) {
+            // Automatically process the recognized voice command!
+            handleVoiceCommand(finalPrompt);
+          }
         };
 
         setSpeechRecognitionInstance(recognition);
@@ -2045,13 +2054,13 @@ export default function App() {
                   </div>
                 )}
 
-                {/* HARDCODED BACKUP SCENARIOS */}
+                {/* 1-CLICK VOICE COMMAND EXAMPLES */}
                 <div style={{ margin: "10px 0 14px", width: "100%", padding: "10px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "8px", border: "1px dashed rgba(90, 33, 17, 0.25)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                     <span style={{ fontSize: "11px", fontWeight: 700, color: "#5a2111", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      ⚡ 1-Click Hardcoded Backup Scenarios
+                      ⚡ 1-Click Voice Command Examples
                     </span>
-                    <span style={{ fontSize: "10px", color: "rgba(90, 33, 17, 0.7)" }}>(Guaranteed offline fallback)</span>
+                    <span style={{ fontSize: "10px", color: "rgba(90, 33, 17, 0.7)" }}>(Tap to test immediately)</span>
                   </div>
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                     {HARDCODED_VOICE_BACKUPS.map((backup, idx) => (
@@ -2059,7 +2068,10 @@ export default function App() {
                         key={idx}
                         type="button"
                         className="kos-category-button"
-                        onClick={() => activateBackupVoiceCommand(idx)}
+                        onClick={() => {
+                          setVoiceInput(backup.text);
+                          handleVoiceCommand(backup.text);
+                        }}
                         style={{
                           fontSize: "11px",
                           padding: "5px 10px",
@@ -2069,6 +2081,7 @@ export default function App() {
                           color: "#5a2111",
                           fontWeight: voiceInput === backup.text ? 700 : 500,
                         }}
+                        title={`Run command: "${backup.text}"`}
                       >
                         {backup.label}
                       </button>

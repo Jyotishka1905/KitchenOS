@@ -83,6 +83,33 @@ SPOILAGE_BASELINE_DATA: Dict[str, Dict[str, Any]] = {
         "default_storage": "refrigerator",
         "notes": "Store in main body of fridge, not the door."
     },
+    "egg": {
+        "category": "Dairy",
+        "icon": "🥚",
+        "refrigerated_days": 28,
+        "freezer_days": 180,
+        "pantry_days": 7,
+        "default_storage": "refrigerator",
+        "notes": "Store in main body of fridge, not the door."
+    },
+    "cucumber": {
+        "category": "Vegetables",
+        "icon": "🥒",
+        "refrigerated_days": 8,
+        "freezer_days": 60,
+        "pantry_days": 3,
+        "default_storage": "refrigerator",
+        "notes": "Keep in crisper drawer wrapped in paper towel."
+    },
+    "cucumbers": {
+        "category": "Vegetables",
+        "icon": "🥒",
+        "refrigerated_days": 8,
+        "freezer_days": 60,
+        "pantry_days": 3,
+        "default_storage": "refrigerator",
+        "notes": "Keep in crisper drawer."
+    },
     "cooked dal": {
         "category": "Grains",
         "icon": "🍲",
