@@ -196,6 +196,7 @@ export default function App() {
 
   const recognitionRef = useRef<any>(null);
   const silenceTimerRef = useRef<any>(null);
+  const latestSpokenTextRef = useRef<string>("");
 
   const HARDCODED_VOICE_BACKUPS = [
     {
@@ -507,24 +508,30 @@ export default function App() {
     }
     try {
       window.speechSynthesis.cancel();
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-      utterance.lang = "en-US";
+      window.setTimeout(() => {
+        try {
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 1.0;
+          utterance.pitch = 1.0;
+          utterance.volume = 1.0;
+          utterance.lang = "en-US";
 
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice =
-        voices.find((v) => v.lang.startsWith("en") && (v.name.includes("Natural") || v.name.includes("Google") || v.name.includes("Samantha"))) ||
-        voices.find((v) => v.lang.startsWith("en"));
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
+          const voices = window.speechSynthesis.getVoices();
+          const preferredVoice =
+            voices.find((v) => v.lang.startsWith("en") && (v.name.includes("Natural") || v.name.includes("Google") || v.name.includes("Samantha") || v.name.includes("David"))) ||
+            voices.find((v) => v.lang.startsWith("en"));
+          if (preferredVoice) {
+            utterance.voice = preferredVoice;
+          }
 
-      window.speechSynthesis.speak(utterance);
+          window.speechSynthesis.speak(utterance);
+        } catch (innerErr) {
+          console.error("speechSynthesis.speak error:", innerErr);
+        }
+      }, 60);
     } catch (err) {
       console.error("Browser speech synthesis error:", err);
     }
@@ -641,28 +648,15 @@ export default function App() {
     setIsListening(false);
   };
 
-  const handleToggleVoiceListening = async () => {
+  const handleToggleVoiceListening = () => {
     if (isListening) {
       stopVoiceListening();
       showToast("Microphone stopped.", "info");
-      if (voiceInput.trim()) {
-        handleVoiceCommand(voiceInput.trim());
+      const pending = latestSpokenTextRef.current.trim();
+      if (pending) {
+        handleVoiceCommand(pending);
       }
       return;
-    }
-
-    // Explicitly prompt for mic permission via getUserMedia
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      } catch (permErr: any) {
-        console.warn("Microphone permission check:", permErr);
-        if (permErr.name === "NotAllowedError" || permErr.name === "PermissionDeniedError") {
-          showToast("🔒 Microphone permission blocked. Please click the lock icon in your address bar and allow Microphone.", "error");
-          return;
-        }
-      }
     }
 
     const SpeechRecognition =
@@ -671,36 +665,35 @@ export default function App() {
     if (SpeechRecognition) {
       try {
         const recognition = new SpeechRecognition();
-        recognition.lang = (navigator.language && navigator.language.startsWith("en")) ? navigator.language : "en-US";
+        recognition.lang =
+          navigator.language && navigator.language.startsWith("en")
+            ? navigator.language
+            : "en-US";
         recognition.interimResults = true;
         recognition.maxAlternatives = 1;
         recognition.continuous = true;
 
-        let accumulatedFinal = "";
+        latestSpokenTextRef.current = "";
+        setVoiceInput("");
+        setInterimSpokenText("");
 
         recognition.onstart = () => {
           setIsListening(true);
-          setInterimSpokenText("");
-          showToast("🎙️ Microphone active! Listening to your voice...", "info");
+          showToast("🎙️ Listening... Speak now (e.g. 'add cucumber', 'add egg')", "info");
         };
 
         recognition.onresult = (event: any) => {
-          let interimText = "";
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-              accumulatedFinal += (accumulatedFinal ? " " : "") + transcript;
-            } else {
-              interimText += transcript;
-            }
+          let completeText = "";
+          for (let i = 0; i < event.results.length; ++i) {
+            completeText += event.results[i][0].transcript;
           }
+          const spoken = completeText.trim();
+          if (spoken) {
+            latestSpokenTextRef.current = spoken;
+            setVoiceInput(spoken);
+            setInterimSpokenText(spoken);
 
-          const currentSpoken = (accumulatedFinal + (interimText ? " " + interimText : "")).trim();
-          if (currentSpoken) {
-            setVoiceInput(currentSpoken);
-            setInterimSpokenText(currentSpoken);
-
-            // Silence timer: if 2.2s pass with no new speech, auto-stop and process!
+            // Auto-submit after 1.8s of silence
             if (silenceTimerRef.current) {
               clearTimeout(silenceTimerRef.current);
             }
@@ -710,21 +703,20 @@ export default function App() {
                   recognitionRef.current.stop();
                 } catch (e) {}
               }
-            }, 2200);
+            }, 1800);
           }
         };
 
         recognition.onerror = (e: any) => {
           console.warn("Speech recognition error:", e.error);
           if (e.error === "no-speech") {
-            // Keep listening in continuous mode
             return;
           }
           setIsListening(false);
           if (e.error === "not-allowed") {
-            showToast("Microphone permission blocked in browser. Please allow microphone access.", "error");
+            showToast("🔒 Microphone access blocked. Please click the lock 🔒 icon in your browser address bar and select 'Allow'.", "error");
           } else if (e.error === "network") {
-            showToast("Speech service notice. You can tap any 1-click example below to test!", "info");
+            showToast("Voice recognition network notice. Tap any 1-click example below to test!", "info");
           } else {
             showToast(`Voice notice: ${e.error}.`, "info");
           }
@@ -736,7 +728,7 @@ export default function App() {
             clearTimeout(silenceTimerRef.current);
             silenceTimerRef.current = null;
           }
-          const textToProcess = (accumulatedFinal || voiceInput).trim();
+          const textToProcess = latestSpokenTextRef.current.trim();
           if (textToProcess) {
             handleVoiceCommand(textToProcess);
           }
@@ -2197,9 +2189,32 @@ export default function App() {
                         <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "50%", background: "#dc2626", animation: "kosBlink 1s infinite" }} />
                         <strong style={{ fontSize: "13px", color: "#dc2626" }}>Microphone is actively hearing your voice!</strong>
                       </div>
-                      <p style={{ margin: "6px 0 0", fontSize: "13px", color: "#5a2111", fontStyle: "italic" }}>
-                        {voiceInput ? `Hearing: "${voiceInput}"` : 'Say e.g. "add cucumber" or "add egg"...'}
+                      <p style={{ margin: "6px 0 0", fontSize: "14px", color: "#5a2111", fontWeight: 600 }}>
+                        {voiceInput ? `Hearing: "${voiceInput}"` : 'Speak into mic: "add cucumber", "add egg"...'}
                       </p>
+                      {voiceInput && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            stopVoiceListening();
+                            handleVoiceCommand(voiceInput);
+                          }}
+                          style={{
+                            marginTop: "8px",
+                            background: "#5a2111",
+                            color: "#fff",
+                            border: "none",
+                            padding: "6px 14px",
+                            borderRadius: "20px",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            boxShadow: "0 2px 6px rgba(90, 33, 17, 0.3)",
+                          }}
+                        >
+                          ⚡ Add "{voiceInput}" Now →
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
