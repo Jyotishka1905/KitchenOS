@@ -450,16 +450,10 @@ export default function App() {
       if (!res.ok) throw new Error("Voice command failed");
       const data = await res.json();
       setLastVoiceResponse(data);
-      showToast(data.confirmation_text || "Inventory updated verbally!", "success");
+      const spokenText = data.confirmation_text || "Inventory updated verbally!";
+      showToast(spokenText, "success");
 
-      if (data.audio_base64) {
-        try {
-          const audio = new Audio(data.audio_base64);
-          audio.play().catch((e) => console.log("Audio playback blocked", e));
-        } catch (e) {
-          console.error("Audio playback error", e);
-        }
-      }
+      speakVoiceResponse(spokenText, data.audio_base64);
 
       await refreshIngredients().catch(() => {});
     } catch (err) {
@@ -503,9 +497,51 @@ export default function App() {
     }
   };
 
+  const speakWithBrowserTTS = (text: string) => {
+    if (!("speechSynthesis" in window)) {
+      console.warn("speechSynthesis not supported in this browser.");
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.lang = "en-US";
+
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice =
+        voices.find((v) => v.lang.startsWith("en") && (v.name.includes("Natural") || v.name.includes("Google") || v.name.includes("Samantha"))) ||
+        voices.find((v) => v.lang.startsWith("en"));
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error("Browser speech synthesis error:", err);
+    }
+  };
+
+  const speakVoiceResponse = (text: string, audioBase64?: string | null) => {
+    if (audioBase64) {
+      try {
+        const audio = new Audio(audioBase64);
+        audio.play().catch((err) => {
+          console.warn("ElevenLabs audio play failed, using browser speech synthesis:", err);
+          speakWithBrowserTTS(text);
+        });
+        return;
+      } catch (err) {
+        console.warn("Audio constructor error, using browser speech synthesis:", err);
+      }
+    }
+    speakWithBrowserTTS(text);
+  };
+
   const handleAudioBlobUpload = async (audioBlob: Blob) => {
     setIsVoiceProcessing(true);
-    showToast("Processing audio recording via Gemini STT...", "info");
+    showToast("Processing audio recording...", "info");
     try {
       const formData = new FormData();
       formData.append("file", audioBlob, "kitchen_command.webm");
@@ -522,28 +558,60 @@ export default function App() {
       if (data.command_text) {
         setVoiceInput(data.command_text);
       }
-      showToast(data.confirmation_text || "Inventory updated via audio recording!", "success");
-
-      if (data.audio_base64) {
-        try {
-          const audio = new Audio(data.audio_base64);
-          audio.play().catch((e) => console.log("Audio playback blocked", e));
-        } catch (e) {
-          console.error("Audio playback error", e);
-        }
-      }
+      const spokenText = data.confirmation_text || "Inventory updated via audio recording!";
+      showToast(spokenText, "success");
+      speakVoiceResponse(spokenText, data.audio_base64);
 
       await refreshIngredients().catch(() => {});
     } catch (err) {
       console.error(err);
       showToast("Audio processing failed. Activating backup voice scenario...", "error");
-      activateBackupVoiceCommand();
+      activateBackupVoiceCommand(0);
     } finally {
       setIsVoiceProcessing(false);
     }
   };
 
-  const handleToggleVoiceListening = async () => {
+  const startMediaRecorderFallback = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast("Microphone hardware unavailable. Loaded backup scenario!", "info");
+      activateBackupVoiceCommand(0);
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        setIsListening(false);
+        stream.getTracks().forEach((track) => track.stop());
+        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+        if (chunks.length > 0) {
+          handleAudioBlobUpload(audioBlob);
+        } else {
+          activateBackupVoiceCommand(0);
+        }
+      };
+
+      setMediaRecorderInstance(mediaRecorder);
+      mediaRecorder.start();
+      setIsListening(true);
+      showToast("🎙️ Microphone recording. Speak your update, tap Stop when done!", "info");
+    } catch (recErr) {
+      console.error("MediaRecorder fallback error:", recErr);
+      setIsListening(false);
+      showToast("Microphone access blocked. Loaded backup scenario!", "info");
+      activateBackupVoiceCommand(0);
+    }
+  };
+
+  const handleToggleVoiceListening = () => {
     if (isListening) {
       if (speechRecognitionInstance) {
         try {
@@ -557,18 +625,6 @@ export default function App() {
       }
       setIsListening(false);
       showToast("Microphone stopped.", "info");
-      return;
-    }
-
-    let stream: MediaStream | null = null;
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      }
-    } catch (err: any) {
-      console.warn("getUserMedia permission error:", err);
-      showToast("Microphone access blocked or unavailable. Backup scenario loaded!", "info");
-      activateBackupVoiceCommand(0);
       return;
     }
 
@@ -589,16 +645,11 @@ export default function App() {
         };
 
         recognition.onresult = (event: any) => {
-          let finalTranscript = "";
-          let interimTranscript = "";
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
-            } else {
-              interimTranscript += event.results[i][0].transcript;
-            }
+          let currentTranscript = "";
+          for (let i = 0; i < event.results.length; ++i) {
+            currentTranscript += event.results[i][0].transcript;
           }
-          const text = (finalTranscript || interimTranscript).trim();
+          const text = currentTranscript.trim();
           if (text) {
             setVoiceInput(text);
           }
@@ -607,11 +658,13 @@ export default function App() {
         recognition.onerror = (e: any) => {
           console.warn("Speech recognition error:", e.error);
           setIsListening(false);
-          if (stream) {
-            stream.getTracks().forEach((track) => track.stop());
-          }
           if (e.error === "no-speech") {
-            showToast("No speech heard. Fallback backup command loaded!", "info");
+            showToast("No speech heard. Speak closer to mic or tap backup preset.", "info");
+          } else if (e.error === "network" || e.error === "service-not-allowed") {
+            showToast("Speech service error. Falling back to audio recording...", "info");
+            startMediaRecorderFallback();
+          } else if (e.error === "not-allowed") {
+            showToast("Microphone permission blocked in browser. Loaded backup preset!", "info");
             activateBackupVoiceCommand(0);
           } else {
             showToast(`Mic notice: ${e.error}. Backup command ready!`, "info");
@@ -621,9 +674,6 @@ export default function App() {
 
         recognition.onend = () => {
           setIsListening(false);
-          if (stream) {
-            stream.getTracks().forEach((track) => track.stop());
-          }
         };
 
         setSpeechRecognitionInstance(recognition);
@@ -634,39 +684,7 @@ export default function App() {
       }
     }
 
-    if (stream && window.MediaRecorder) {
-      try {
-        const mediaRecorder = new MediaRecorder(stream);
-        const chunks: Blob[] = [];
-
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) chunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          setIsListening(false);
-          stream?.getTracks().forEach((track) => track.stop());
-          const audioBlob = new Blob(chunks, { type: "audio/webm" });
-          if (chunks.length > 0) {
-            handleAudioBlobUpload(audioBlob);
-          } else {
-            activateBackupVoiceCommand(0);
-          }
-        };
-
-        setMediaRecorderInstance(mediaRecorder);
-        mediaRecorder.start();
-        setIsListening(true);
-        showToast("🎙️ Microphone recording (MediaRecorder). Speak now, tap Stop when done!", "info");
-        return;
-      } catch (recErr) {
-        console.error("MediaRecorder fallback error:", recErr);
-      }
-    }
-
-    setIsListening(false);
-    showToast("Microphone unavailable. Activated backup voice command!", "info");
-    activateBackupVoiceCommand(0);
+    startMediaRecorderFallback();
   };
 
   // =========================================================
@@ -2101,21 +2119,20 @@ export default function App() {
                   <div style={{ marginTop: "16px", padding: "12px", background: "rgba(90, 33, 17, 0.05)", borderRadius: "10px", fontSize: "13px", color: "#5a2111" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                       <strong>Summary:</strong>
-                      {lastVoiceResponse.audio_base64 && (
-                        <button
-                          type="button"
-                          className="kos-add-button"
-                          onClick={() => {
-                            const audio = new Audio(lastVoiceResponse.audio_base64);
-                            audio.play().catch(console.error);
-                          }}
-                          style={{ width: "auto", height: "auto", padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
-                        >
-                          🔊 Replay Audio
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="kos-add-button"
+                        onClick={() => {
+                          const textToSay = lastVoiceResponse.confirmation_text || lastVoiceResponse.natural_summary || "Inventory updated.";
+                          speakVoiceResponse(textToSay, lastVoiceResponse.audio_base64);
+                        }}
+                        style={{ width: "auto", height: "auto", padding: "5px 10px", fontSize: "12px", borderRadius: "6px", display: "flex", alignItems: "center", gap: "5px", background: "#5a2111", color: "#ffffff" }}
+                        title="Play spoken voice confirmation"
+                      >
+                        🔊 Play Voice Confirmation
+                      </button>
                     </div>
-                    <p style={{ margin: "0 0 8px" }}>{lastVoiceResponse.natural_summary}</p>
+                    <p style={{ margin: "0 0 8px" }}>{lastVoiceResponse.confirmation_text || lastVoiceResponse.natural_summary}</p>
                     {lastVoiceResponse.added_items && lastVoiceResponse.added_items.length > 0 && (
                       <p style={{ margin: "2px 0", fontSize: "12px" }}>
                         ✅ <strong>Added:</strong>{" "}
